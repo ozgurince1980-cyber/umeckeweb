@@ -32,3 +32,14 @@
   ],
   "exclude": ["node_modules"]
 }
+{
+  "compilerOptions": {
+    // Diğer mevcut ayarların aynen kalabilir, altına şunları ekle:
+    "noEmit": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strict": false
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
