@@ -618,15 +618,11 @@ export default function RestaurantManager() {
                             </span>
                         </div>
 
-                        {/* FOTOĞRAF YÜKLEME ALANI (KAMERA + GALERİ / DOSYA SEÇİMİ BİR ARADA) */}
+                        {/* FOTOĞRAF YÜKLEME ALANI */}
                         <div style={{ background: "#f8f9fa", padding: "20px", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "30px", boxSizing: "border-box" }}>
                             <h3 style={{ margin: "0 0 10px 0", fontSize: "16px", color: "#111" }}>
                                 📷 Kamera & Galeri Fotoğraf Yükleme Paneli
                             </h3>
-                            <p style={{ fontSize: "13px", color: "#666", marginBottom: "20px" }}>
-                                Tıkladığınızda telefonunuz veya tarayıcınız size kamera ile çekme ya da galeriden/dosyalardan seçme seçeneklerini sunar.
-                            </p>
-
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "15px", boxSizing: "border-box" }}>
                                 <div style={{ background: "#fff", padding: "15px", borderRadius: "8px", border: "1px solid #ddd", boxSizing: "border-box" }}>
                                     <label style={{ display: "block", fontSize: "13px", fontWeight: "bold", marginBottom: "10px", color: "#333" }}>
@@ -660,36 +656,6 @@ export default function RestaurantManager() {
                                     </label>
                                 </div>
                             </div>
-
-                            <div style={{ background: "#fff", padding: "15px", borderRadius: "8px", border: "1px solid #ddd", marginTop: "15px", boxSizing: "border-box" }}>
-                                <label style={{ display: "block", fontSize: "13px", fontWeight: "bold", marginBottom: "8px", color: "#333" }}>
-                                    Menü Ürün Fotoğrafı Güncelle
-                                </label>
-                                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", boxSizing: "border-box" }}>
-                                    <select
-                                        value={selectedMenuItemId}
-                                        onChange={(e) => setSelectedMenuItemId(e.target.value)}
-                                        style={{ flex: 1, minWidth: "200px", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }}
-                                    >
-                                        {menuItems.map((item) => (
-                                            <option key={item.id} value={item.id}>
-                                                {item.name} ({item.price} €)
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <label style={{ background: "#2563EB", color: "#fff", padding: "10px 15px", borderRadius: "6px", fontWeight: "bold", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}>
-                                        {uploadingPhoto ? "Yükleniyor..." : "🍽️ Ürün Fotoğrafı Seç / Çek"}
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            style={{ display: "none" }}
-                                            onChange={(e) => e.target.files && e.target.files[0] && handleDirectImageUpload(e.target.files[0], "menu_item")}
-                                            disabled={uploadingPhoto}
-                                        />
-                                    </label>
-                                </div>
-                            </div>
-
                             {uploadMessage && (
                                 <div style={{ marginTop: "12px", fontSize: "14px", fontWeight: "bold", textAlign: "center", color: uploadMessage.includes("Hata") ? "red" : "green" }}>
                                     {uploadMessage}
@@ -697,12 +663,9 @@ export default function RestaurantManager() {
                             )}
                         </div>
 
-                        {/* Metin ve Ayar Formu */}
                         <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                             <div>
-                                <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>
-                                    Restoran Adı
-                                </label>
+                                <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>Restoran Adı</label>
                                 <input
                                     type="text"
                                     value={editForm.name || ""}
@@ -710,164 +673,6 @@ export default function RestaurantManager() {
                                     style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
                                 />
                             </div>
-
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "15px", boxSizing: "border-box" }}>
-                                <div>
-                                    <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>İşletme Türü</label>
-                                    <select
-                                        value={editForm.business_type || ""}
-                                        onChange={(e) => setEditForm({ ...editForm, business_type: e.target.value })}
-                                        style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                    >
-                                        {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>Mutfak Tipi</label>
-                                    <select
-                                        value={editForm.cuisine_type || ""}
-                                        onChange={(e) => setEditForm({ ...editForm, cuisine_type: e.target.value })}
-                                        style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                    >
-                                        {CUISINE_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>Ana Ürün / Uzmanlık</label>
-                                    <select
-                                        value={editForm.product_category || ""}
-                                        onChange={(e) => setEditForm({ ...editForm, product_category: e.target.value })}
-                                        style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                    >
-                                        {PRODUCT_CATEGORIES.map((p) => <option key={p} value={p}>{p}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "15px", boxSizing: "border-box" }}>
-                                <div>
-                                    <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>Otopark Bilgisi</label>
-                                    <select
-                                        value={editForm.parking_info || ""}
-                                        onChange={(e) => setEditForm({ ...editForm, parking_info: e.target.value })}
-                                        style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                    >
-                                        {PARKING_OPTIONS.map((park) => <option key={park} value={park}>{park}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>Telefon Numarası</label>
-                                    <input
-                                        type="text"
-                                        value={editForm.phone || ""}
-                                        onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                                        style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "8px" }}>Sunulan Servis Seçenekleri</label>
-                                <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-                                    {AVAILABLE_SERVICES.map((serv) => (
-                                        <label key={serv} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={editForm.service_options?.includes(serv) || false}
-                                                onChange={() => handleCheckboxArrayChange("service_options", serv)}
-                                            />
-                                            {serv}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "8px" }}>Kabul Edilen Ödeme Yöntemleri</label>
-                                <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-                                    {AVAILABLE_PAYMENTS.map((pay) => (
-                                        <label key={pay} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={editForm.payment_methods?.includes(pay) || false}
-                                                onChange={() => handleCheckboxArrayChange("payment_methods", pay)}
-                                            />
-                                            {pay}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "15px", boxSizing: "border-box" }}>
-                                <div>
-                                    <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>E-posta Adresi</label>
-                                    <input
-                                        type="email"
-                                        value={editForm.email || ""}
-                                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                                        style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>Web Sitesi</label>
-                                    <input
-                                        type="text"
-                                        value={editForm.website || ""}
-                                        onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
-                                        style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>Hikayemiz / Hakkımızda</label>
-                                <textarea
-                                    rows={4}
-                                    value={editForm.story || ""}
-                                    onChange={(e) => setEditForm({ ...editForm, story: e.target.value })}
-                                    style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>Adres (Harita Linki İçin)</label>
-                                <input
-                                    type="text"
-                                    value={editForm.address || ""}
-                                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                                    style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box" }}
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "10px" }}>📅 Haftalık Çalışma Saatleri</label>
-                                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                                    {DAYS_OF_WEEK.map((d) => {
-                                        const dayInfo = editForm.weekly_hours?.[d.key] || { open: "10:00 - 22:00", closed: false }
-                                        return (
-                                            <div key={d.key} style={{ display: "flex", alignItems: "center", gap: "15px", background: "#f8f9fa", padding: "10px", borderRadius: "6px", flexWrap: "wrap", boxSizing: "border-box" }}>
-                                                <span style={{ width: "100px", fontWeight: "bold", fontSize: "14px" }}>{d.label}</span>
-                                                <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", cursor: "pointer" }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={dayInfo.closed}
-                                                        onChange={(e) => handleDayHourChange(d.key, "closed", e.target.checked)}
-                                                    />
-                                                    Kapalı
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    disabled={dayInfo.closed}
-                                                    value={dayInfo.open}
-                                                    onChange={(e) => handleDayHourChange(d.key, "open", e.target.value)}
-                                                    style={{ flex: 1, minWidth: "150px", padding: "6px 10px", borderRadius: "4px", border: "1px solid #ccc", opacity: dayInfo.closed ? 0.5 : 1, boxSizing: "border-box" }}
-                                                />
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-
                             <button
                                 type="submit"
                                 disabled={saving}
@@ -880,10 +685,9 @@ export default function RestaurantManager() {
                                     fontWeight: "bold",
                                     cursor: "pointer",
                                     fontSize: "16px",
-                                    marginTop: "10px",
                                 }}
                             >
-                                {saving ? "Kaydediliyor..." : "Değişiklikleri Supabase'e Kaydet"}
+                                {saving ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
                             </button>
                         </form>
                     </div>
@@ -908,80 +712,9 @@ export default function RestaurantManager() {
                         style={{
                             position: "absolute",
                             inset: 0,
-                            background:
-                                "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.3))",
+                            background: "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.3))",
                         }}
                     ></div>
-
-                    <div
-                        style={{
-                            position: "absolute",
-                            top: "30px",
-                            left: "0",
-                            right: "0",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            gap: "15px",
-                            flexWrap: "wrap",
-                            padding: "0 20px",
-                            zIndex: 2,
-                            boxSizing: "border-box",
-                        }}
-                    >
-                        <a
-                            href={mapsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                                color: "#fff",
-                                background: "rgba(0,0,0,0.6)",
-                                padding: "8px 16px",
-                                borderRadius: "8px",
-                                textDecoration: "none",
-                                fontSize: "14px",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                border: "1px solid rgba(255,255,255,0.15)",
-                            }}
-                        >
-                            📍 {addressText} (Haritada Aç)
-                        </a>
-                        <a
-                            href={`tel:${phoneText}`}
-                            style={{
-                                color: "#fff",
-                                background: "rgba(0,0,0,0.6)",
-                                padding: "8px 16px",
-                                borderRadius: "8px",
-                                textDecoration: "none",
-                                fontSize: "14px",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                border: "1px solid rgba(255,255,255,0.15)",
-                            }}
-                        >
-                            📞 {phoneText}
-                        </a>
-                        <span
-                            style={{
-                                color: "#fff",
-                                background: "rgba(0,0,0,0.6)",
-                                padding: "8px 16px",
-                                borderRadius: "8px",
-                                fontSize: "14px",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                border: "1px solid rgba(255,255,255,0.15)",
-                            }}
-                        >
-                            🚗 {parkingText}
-                        </span>
-                    </div>
-
                     <div
                         style={{
                             position: "relative",
@@ -992,175 +725,9 @@ export default function RestaurantManager() {
                             boxSizing: "border-box",
                         }}
                     >
-                        <h1
-                            style={{
-                                fontSize: "36px",
-                                fontWeight: "900",
-                                margin: 0,
-                                textShadow: "0 2px 10px rgba(0,0,0,0.6)",
-                                letterSpacing: "0.5px",
-                            }}
-                        >
+                        <h1 style={{ fontSize: "36px", fontWeight: "900", margin: 0, textShadow: "0 2px 10px rgba(0,0,0,0.6)" }}>
                             {selectedRestaurant.name}
                         </h1>
-                    </div>
-                </div>
-
-                {/* Servis ve Ödeme Bilgileri */}
-                <div
-                    style={{
-                        maxWidth: "1000px",
-                        width: "92%",
-                        margin: "30px auto 0 auto",
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                        gap: "20px",
-                        boxSizing: "border-box",
-                    }}
-                >
-                    <div
-                        style={{
-                            background: "#fff",
-                            padding: "20px 25px",
-                            borderRadius: "12px",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                            boxSizing: "border-box",
-                        }}
-                    >
-                        <h4 style={{ margin: "0 0 12px 0", fontSize: "16px", color: "#111" }}>
-                            🚀 Servis Seçenekleri
-                        </h4>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
-                            {servicesList.map((s: string) => (
-                                <span key={s} style={{ color: "#2d3748", fontSize: "14px", fontWeight: "600" }}>
-                                    ✓ {s}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                    <div
-                        style={{
-                            background: "#fff",
-                            padding: "20px 25px",
-                            borderRadius: "12px",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                            boxSizing: "border-box",
-                        }}
-                    >
-                        <h4 style={{ margin: "0 0 12px 0", fontSize: "16px", color: "#111" }}>
-                            💳 Kabul Edilen Ödemeler
-                        </h4>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
-                            {paymentsList.map((p: string) => (
-                                <span key={p} style={{ color: "#2d3748", fontSize: "14px", fontWeight: "600" }}>
-                                    ✓ {p}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Haftalık Çalışma Saatleri */}
-                <div
-                    style={{
-                        maxWidth: "1000px",
-                        width: "92%",
-                        margin: "30px auto 0 auto",
-                        background: "#fff",
-                        padding: "25px 30px",
-                        borderRadius: "12px",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                        boxSizing: "border-box",
-                    }}
-                >
-                    <h3 style={{ margin: "0 0 20px 0", color: "#111", fontSize: "18px" }}>
-                        📅 Günlük Çalışma Saatleri
-                    </h3>
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                            gap: "15px",
-                            boxSizing: "border-box",
-                        }}
-                    >
-                        {DAYS_OF_WEEK.map((d) => {
-                            const dInfo = weeklyHoursData[d.key] || {
-                                open: "10:00 - 22:00",
-                                closed: false,
-                            }
-                            return (
-                                <div
-                                    key={d.key}
-                                    style={{
-                                        background: "#fafafa",
-                                        padding: "12px 16px",
-                                        borderRadius: "8px",
-                                        border: "1px solid #eaeaea",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: "4px",
-                                        boxSizing: "border-box",
-                                    }}
-                                >
-                                    <span style={{ fontSize: "13px", fontWeight: "bold", color: "#666" }}>
-                                        {d.label}
-                                    </span>
-                                    {dInfo.closed ? (
-                                        <span style={{ fontSize: "14px", fontWeight: "bold", color: "#e53e3e" }}>
-                                            Kapalı
-                                        </span>
-                                    ) : (
-                                        <span style={{ fontSize: "14px", fontWeight: "bold", color: "#2d3748" }}>
-                                            {dInfo.open}
-                                        </span>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-
-                {/* HİKAYEMİZ */}
-                <div
-                    style={{
-                        maxWidth: "1000px",
-                        width: "92%",
-                        margin: "30px auto 0 auto",
-                        background: "#fff",
-                        padding: "25px 30px",
-                        borderRadius: "12px",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                        display: "flex",
-                        gap: "25px",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        boxSizing: "border-box",
-                    }}
-                >
-                    <div
-                        style={{
-                            width: "80px",
-                            height: "80px",
-                            borderRadius: "50%",
-                            overflow: "hidden",
-                            border: "3px solid #e53e3e",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                            background: "#fff",
-                            flexShrink: 0,
-                        }}
-                    >
-                        <img
-                            src={ownerImg}
-                            alt="Owner"
-                            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                        />
-                    </div>
-                    <div style={{ flex: 1, minWidth: "250px" }}>
-                        <h3 style={{ margin: "0 0 8px 0", color: "#111" }}>Hikayemiz</h3>
-                        <p style={{ color: "#555", lineHeight: "1.6", margin: 0, fontSize: "14px" }}>
-                            {storyText}
-                        </p>
                     </div>
                 </div>
 
@@ -1186,7 +753,10 @@ export default function RestaurantManager() {
                                 return (
                                     <div
                                         key={item.id}
-                                        onClick={() => setSelectedProduct(item)}
+                                        onClick={() => {
+                                            console.log("Ürüne tıklandı:", item.name);
+                                            setSelectedProduct(item);
+                                        }}
                                         style={{
                                             background: "#fff",
                                             borderRadius: "12px",
@@ -1194,8 +764,9 @@ export default function RestaurantManager() {
                                             boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
                                             display: "flex",
                                             flexDirection: "column",
-                                            boxSizing: "border-box",
                                             cursor: "pointer",
+                                            border: "1px solid #eaeaea",
+                                            boxSizing: "border-box",
                                         }}
                                     >
                                         <div style={{ width: "100%", height: "160px", background: "#f0f0f0" }}>
@@ -1226,11 +797,12 @@ export default function RestaurantManager() {
                         </div>
                     )}
                 </div>
-                {/* ÜRÜN DETAY MODALI */}
+
+                {/* MODAL */}
                 {selectedProduct && (
-                    <ProductModal
-                        product={selectedProduct}
-                        onClose={() => setSelectedProduct(null)}
+                    <ProductModal 
+                        product={selectedProduct} 
+                        onClose={() => setSelectedProduct(null)} 
                     />
                 )}
             </div>
@@ -1251,75 +823,11 @@ export default function RestaurantManager() {
         >
             <div style={{ maxWidth: "1100px", width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
                 <div style={{ textAlign: "center", marginBottom: "50px" }}>
-                    <div style={{ display: "inline-block", marginBottom: "20px" }}>
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 720 220"
-                            style={{ width: "280px", height: "auto", display: "block", margin: "0 auto" }}
-                        >
-                            <defs>
-                                <linearGradient id="cornerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#ff3b00" />
-                                    <stop offset="100%" stopColor="#ff9900" />
-                                </linearGradient>
-                            </defs>
-                            <path
-                                d="M 60 170 L 60 90 C 60 73.431 73.431 60 90 60 L 175 60"
-                                fill="none"
-                                stroke="url(#cornerGrad)"
-                                strokeWidth="18"
-                                strokeLinecap="round"
-                            />
-                            <path
-                                d="M 60 170 L 60 120"
-                                fill="none"
-                                stroke="#222222"
-                                strokeWidth="18"
-                                strokeLinecap="round"
-                            />
-                            <text
-                                x="220"
-                                y="130"
-                                fontFamily="sans-serif"
-                                fontWeight="900"
-                                fontSize="76"
-                                fill="#222222"
-                                letterSpacing="2"
-                            >
-                                UM<tspan fill="#ff9900">ECKE</tspan>
-                            </text>
-                            <text
-                                x="222"
-                                y="172"
-                                fontFamily="sans-serif"
-                                fontWeight="500"
-                                fontSize="20"
-                                fill="#666666"
-                                letterSpacing="0.5"
-                            >
-                                Local flavor, right around the corner.
-                            </text>
-                        </svg>
-                    </div>
-
-                    <p
-                        style={{
-                            color: "#555",
-                            fontSize: "18px",
-                            maxWidth: "750px",
-                            margin: "0 auto 40px auto",
-                            lineHeight: "1.6",
-                        }}
-                    >
-                        A local food movement built to bypass greedy commissions, support neighborhood restaurants, and bring you real flavor straight from the counter around the corner.
-                    </p>
-
                     <h3 style={{ fontSize: "22px", color: "#111", marginBottom: "20px" }}>
                         Discover Local Restaurants
                     </h3>
                 </div>
 
-                {/* RESTORAN KARTLARI LİSTESİ */}
                 <div
                     style={{
                         display: "grid",
@@ -1358,27 +866,6 @@ export default function RestaurantManager() {
                                         alt={res.name}
                                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                                     />
-                                    <div
-                                        style={{
-                                            position: "absolute",
-                                            bottom: "12px",
-                                            left: "15px",
-                                            width: "55px",
-                                            height: "55px",
-                                            borderRadius: "50%",
-                                            overflow: "hidden",
-                                            border: "2px solid #fff",
-                                            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                                            background: "#fff",
-                                            flexShrink: 0,
-                                        }}
-                                    >
-                                        <img
-                                            src={cardLogo}
-                                            alt="Logo"
-                                            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                                        />
-                                    </div>
                                 </div>
                                 <div style={{ padding: "20px", boxSizing: "border-box" }}>
                                     <h3 style={{ fontSize: "20px", margin: "6px 0 8px 0", color: "#111" }}>
@@ -1421,3 +908,4 @@ export default function RestaurantManager() {
             </div>
         </div>
     )
+}
