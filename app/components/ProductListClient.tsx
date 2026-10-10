@@ -7,18 +7,16 @@ export default function ProductListClient({ products }: { products: any[] }) {
 
   return (
     <>
-      <div className="grid gap-4 relative z-10">
+      <div className="grid gap-4">
         {products && products.length > 0 ? (
           products.map((product: any) => (
             <div 
               key={product.id} 
-              onClick={(e) => {
-                e.stopPropagation();
-                console.log("Ürüne tıklandı:", product.name);
+              onClick={() => {
+                alert("Tıklama başarılı: " + product.name);
                 setSelectedProduct(product);
               }}
-              style={{ cursor: 'pointer' }}
-              className="bg-white p-4 rounded-xl shadow-sm flex items-center justify-between border hover:border-green-500 hover:shadow-md transition-all relative cursor-pointer"
+              className="bg-white p-4 rounded-xl shadow-sm flex items-center justify-between border cursor-pointer hover:border-green-500 hover:shadow-md transition-all relative z-20"
             >
               <div className="flex-1 pr-4 pointer-events-none">
                 <h3 className="font-semibold text-gray-900">{product.name}</h3>
