@@ -514,6 +514,28 @@ export default function RestaurantManager() {
                             fontWeight: "bold",
                         }}
                     >
+<button
+    type="button"
+    key={item.id}
+    onClick={() => {
+        console.log("Ürüne tıklandı:", item.name);
+        setSelectedProduct(item);
+    }}
+    style={{
+        width: "100%",
+        textAlign: "left",
+        background: "#fff",
+        borderRadius: "12px",
+        overflow: "hidden",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+        display: "flex",
+        flexDirection: "column",
+        cursor: "pointer",
+        border: "1px solid #eaeaea",
+        boxSizing: "border-box",
+    }}
+>
+  </button>
                         ← Back to Restaurants
                     </button>
                     <button
@@ -908,4 +930,4 @@ export default function RestaurantManager() {
             </div>
         </div>
     )
-}
+}	
