@@ -10,15 +10,16 @@ export default function ProductListClient({ products }: { products: any[] }) {
       <div className="grid gap-4">
         {products && products.length > 0 ? (
           products.map((product: any) => (
-            <div 
+            <button
+              type="button"
               key={product.id} 
               onClick={() => {
-                alert("Tıklama başarılı: " + product.name);
+                alert("Tıklandı: " + product.name);
                 setSelectedProduct(product);
               }}
-              className="bg-white p-4 rounded-xl shadow-sm flex items-center justify-between border cursor-pointer hover:border-green-500 hover:shadow-md transition-all relative z-20"
+              className="w-full text-left bg-white p-4 rounded-xl shadow-sm flex items-center justify-between border cursor-pointer hover:border-green-500 hover:shadow-md transition-all"
             >
-              <div className="flex-1 pr-4 pointer-events-none">
+              <div className="flex-1 pr-4">
                 <h3 className="font-semibold text-gray-900">{product.name}</h3>
                 <p className="text-sm text-gray-500 mt-1">{product.description}</p>
                 <span className="text-green-600 font-bold mt-2 inline-block">€{product.price}</span>
@@ -27,10 +28,10 @@ export default function ProductListClient({ products }: { products: any[] }) {
                 <img 
                   src={product.image_url} 
                   alt={product.name} 
-                  className="w-20 h-20 object-cover rounded-lg border pointer-events-none" 
+                  className="w-20 h-20 object-cover rounded-lg border" 
                 />
               )}
-            </div>
+            </button>
           ))
         ) : (
           <p className="text-gray-500 text-center py-4">Bu restorana ait henüz ürün bulunmuyor.</p>
