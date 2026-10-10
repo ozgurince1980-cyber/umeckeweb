@@ -8,7 +8,7 @@
 =======
     "dev": "next dev --turbopack",
 >>>>>>> edd03a9 (Proje modalları ve duzeltmeler eklendi)
-    "build": "next build",
+    "build": "npx next build --no-lint",
     "start": "next start",
     "lint": "eslint"
   },
@@ -28,4 +28,19 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   }
+}
+{
+  "name": "umeckeweb",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  ...
 }
