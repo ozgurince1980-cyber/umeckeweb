@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+<<<<<<< HEAD
     "dev": "next dev",
+=======
+    "dev": "next dev --turbopack",
+>>>>>>> edd03a9 (Proje modalları ve duzeltmeler eklendi)
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
