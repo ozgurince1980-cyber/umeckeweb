@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { createClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
-import ProductListClient from '@/app/components/ProductListClient'; // İstemci bileşenini içeri aktarıyoruz
+import RestaurantManager from '../components/RestaurantManager';
 
 // Supabase istemcisi
 const supabase = createClient(
@@ -19,7 +19,7 @@ export default async function RestaurantMenuPage({
 
   console.log("Aranan Restoran Slug:", slug);
 
-  // 1. Restoranı slug değerine göre bul (.maybeSingle kullanarak hata patlamasını önlüyoruz)
+  // 1. Restoranı slug değerine göre bul
   const { data: restaurant, error: restError } = await supabase
     .from('restaurants')
     .select('*')
@@ -36,31 +36,9 @@ export default async function RestaurantMenuPage({
     notFound();
   }
 
-  // 2. Restorana ait ürünleri/menüyü çek
-  const { data: products, error: prodError } = await supabase
-    .from('products')
-    .select('*')
-    .eq('restaurant_id', restaurant.id);
-
-  if (prodError) {
-    console.error("Supabase Ürünler Sorgu Hatası:", prodError);
-  }
-
   return (
-    <main className="min-h-screen bg-gray-50 pb-20">
-      {/* Restoran Kapak ve Bilgileri */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-2xl mx-auto p-4 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">{restaurant.name}</h1>
-          <p className="text-sm text-gray-600 mt-1">{restaurant.description || 'Hoş geldiniz! Siparişinizi hemen verebilirsiniz.'}</p>
-        </div>
-      </div>
-
-      {/* Ürünler Listesi (İnteraktif yapı ProductListClient içine devredildi) */}
-      <div className="max-w-2xl mx-auto p-4 mt-4">
-        <h2 className="text-lg font-semibold mb-4 text-gray-800">Menü</h2>
-        <ProductListClient products={products || []} />
-      </div>
+    <main className="min-h-screen bg-gray-50">
+      <RestaurantManager />
     </main>
   );
 }
