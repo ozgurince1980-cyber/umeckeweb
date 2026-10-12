@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 import ProductModal from "./ProductModal"
 import CartBar from "./CartBar"
-import CartModal from "./CartModal" // 1. CartModal bileşenini içe aktardık
+import CartModal from "./CartModal"
 
 const SUPABASE_URL = "https://yajeiyecxkwmwqkfkxvp.supabase.co"
 const SUPABASE_ANON_KEY = "sb_publishable_pz5KKsdQXXlG7kV239OoJw_YsNuF3w7"
@@ -118,7 +118,7 @@ export default function RestaurantManager() {
 
     // Modal state'leri
     const [selectedProduct, setSelectedProduct] = useState<any>(null)
-    const [isCartModalOpen, setIsCartModalOpen] = useState<boolean>(false) // Sepet modalının açık/kapalı durumu
+    const [isCartModalOpen, setIsCartModalOpen] = useState<boolean>(false)
 
     // Sepet state'i
     const [cartItems, setCartItems] = useState<any[]>([])
@@ -236,7 +236,6 @@ export default function RestaurantManager() {
         setUploadMessage("")
     }, [supabase, selectedRestaurant])
 
-    // Sepete ürün ekleme fonksiyonu
     const handleAddToCart = (newItem: any) => {
         setCartItems((prevItems) => {
             const existingIndex = prevItems.findIndex((item) => item.cartId === newItem.cartId);
@@ -250,7 +249,6 @@ export default function RestaurantManager() {
         });
     }
 
-    // Sepet miktar güncelleme fonksiyonu (+ / -)
     const handleUpdateQuantity = (cartId: string, delta: number) => {
         setCartItems((prevItems) => {
             return prevItems.map((item) => {
@@ -1149,7 +1147,7 @@ export default function RestaurantManager() {
                                         </span>
                                     )}
                                 </div>
-                            )
+                            );
                         })}
                     </div>
                 </div>
@@ -1271,7 +1269,7 @@ export default function RestaurantManager() {
                     />
                 )}
 
-                {/* 2. CartModal Entegrasyonu (Sepete Git / Sipariş Ver butonuna basıldığında açılır) */}
+                {/* CartModal Entegrasyonu (restaurantId parametresi eklendi) */}
                 {isCartModalOpen && (
                     <CartModal
                         items={cartItems}
@@ -1280,6 +1278,7 @@ export default function RestaurantManager() {
                         onClearCart={() => setCartItems([])}
                         restaurantPhone={selectedRestaurant.phone}
                         restaurantName={selectedRestaurant.name}
+                        restaurantId={selectedRestaurant.id}
                     />
                 )}
 

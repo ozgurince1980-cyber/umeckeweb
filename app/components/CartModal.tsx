@@ -7,8 +7,9 @@ interface CartModalProps {
   onClose: () => void;
   onUpdateQuantity: (cartId: string, delta: number) => void;
   onClearCart: () => void;
-  restaurantPhone: string;
+  restaurantPhone?: string;
   restaurantName: string;
+  restaurantId?: string; // Supabase orders kaydı için restoran ID'si
 }
 
 export default function CartModal({
@@ -16,7 +17,8 @@ export default function CartModal({
   onClose,
   onUpdateQuantity,
   onClearCart,
-  restaurantName
+  restaurantName,
+  restaurantId
 }: CartModalProps) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -24,17 +26,41 @@ export default function CartModal({
   const [serviceOption, setServiceOption] = useState("Paket Servis");
   const [paymentMethod, setPaymentMethod] = useState("Nakit");
   const [orderNote, setOrderNote] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalPrice = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (item.quantity || 1), 0);
 
-  const handleSendOrder = (e: React.FormEvent) => {
+  const handleSendOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName || !customerPhone) {
       alert("Lütfen Ad Soyad ve Telefon bilgilerinizi doldurun.");
       return;
     }
 
-    // Çok Katmanlı WhatsApp Yönlendirme ve Sipariş Şablonu
+    setIsSubmitting(true);
+
+    // 1. Supabase orders Tablosuna Kayıt Atma (API Çağrısı)
+    try {
+      const productSummary = items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+      await fetch('/api/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurant_id: restaurantId || null,
+          customer_phone: customerPhone,
+          order_type: 'whatsapp',
+          total_amount: totalPrice,
+          notes: `Müşteri: ${customerName} | Servis: ${serviceOption} | Ödeme: ${paymentMethod} | Adres: ${deliveryAddress || 'Yok'} | Not: ${orderNote || 'Yok'}`,
+          product_name: productSummary,
+        })
+      });
+    } catch (err) {
+      console.error("Sipariş veritabanına kaydedilirken hata oluştu, WhatsApp yönlendirmesi devam ediyor:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+
+    // 2. Çok Katmanlı WhatsApp Yönlendirme ve Sipariş Şablonu
     let message = `🔔 *YENİ PLATFORM SİPARİŞİ (umEcke)*\n`;
     message += `-----------------------------------\n`;
     message += `🏛️ *RESTORAN:* *${restaurantName.toUpperCase()}*\n`;
@@ -213,9 +239,10 @@ export default function CartModal({
 
             <button
               type="submit"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg flex justify-between items-center px-6 mt-4"
+              disabled={isSubmitting}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg flex justify-between items-center px-6 mt-4 cursor-pointer"
             >
-              <span>📲 WhatsApp ile Siparişi Tamamla</span>
+              <span>{isSubmitting ? "Sipariş İşleniyor..." : "📲 WhatsApp ile Siparişi Tamamla"}</span>
               <span className="text-lg">{totalPrice.toFixed(2)} €</span>
             </button>
           </form>
