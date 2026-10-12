@@ -4,14 +4,15 @@ import { useState } from 'react';
 interface ProductModalProps {
   product: any;
   onClose: () => void;
+  onAddToCart: (cartItem: any) => void;
 }
 
-export default function ProductModal({ product, onClose }: ProductModalProps) {
-  const [selectedSize, setSelectedSize] = useState<any>(null);
+export default function ProductModal({ product, onClose, onAddToCart }: ProductModalProps) {
+  const [selectedSize, setSelectedSize] = useState<any>({ id: '1', name: 'Normal Boy', price: 0 });
   const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
 
-  // Örnek dinamik seçenekler (İleride Supabase'den çekilecek)
+  // Örnek dinamik seçenekler
   const sizes = [
     { id: '1', name: 'Normal Boy', price: 0 },
     { id: '2', name: 'Büyük Boy', price: 2.50 },
@@ -39,7 +40,26 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
     return total + (extra ? extra.price : 0);
   }, 0);
 
-  const totalPrice = (basePrice + sizePrice + extrasPrice) * quantity;
+  const unitPrice = basePrice + sizePrice + extrasPrice;
+  const totalPrice = unitPrice * quantity;
+
+  const handleAddClick = () => {
+    // Seçilen ekstraların detaylarını bulalım
+    const detailedExtras = selectedExtras.map(extraId => extras.find(e => e.id === extraId)).filter(Boolean);
+
+    const cartItem = {
+      cartId: `${product.id}-${selectedSize?.id}-${selectedExtras.sort().join('-')}`,
+      id: product.id,
+      name: product.name,
+      price: unitPrice,
+      quantity: quantity,
+      size: selectedSize,
+      extras: detailedExtras,
+    };
+
+    onAddToCart(cartItem);
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -132,10 +152,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
           </div>
 
           <button 
-            onClick={() => {
-              alert(`Sepete Eklendi: ${quantity} adet ${product.name} - Toplam: ${totalPrice.toFixed(2)} €`);
-              onClose();
-            }}
+            onClick={handleAddClick}
             className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-all flex-1 ml-4 flex justify-between items-center"
           >
             <span>Sepete Ekle</span>

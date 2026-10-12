@@ -2,34 +2,53 @@
 
 import React from 'react';
 
-interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
 interface CartBarProps {
-  items: CartItem[];
+  items: any[];
   onOpenCart: () => void;
 }
 
 export default function CartBar({ items, onOpenCart }: CartBarProps) {
   if (!items || items.length === 0) return null;
 
-  const totalCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalCount = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  const totalPrice = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (item.quantity || 1), 0);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 z-50 flex justify-between items-center max-w-2xl mx-auto rounded-t-2xl">
-      <div>
-        <span className="font-bold text-gray-900">{totalCount} Ürün</span>
-        <span className="mx-2 text-gray-300">|</span>
-        <span className="font-semibold text-green-600">{totalPrice.toFixed(2)} €</span>
+    <div style={{
+      position: 'fixed',
+      bottom: '20px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: '90%',
+      maxWidth: '600px',
+      backgroundColor: '#111',
+      color: '#fff',
+      padding: '16px 24px',
+      borderRadius: '16px',
+      boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+      zIndex: 9999,
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      fontFamily: 'sans-serif'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{totalCount} Ürün</span>
+        <span style={{ color: '#666' }}>|</span>
+        <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#48bb78' }}>{totalPrice.toFixed(2)} €</span>
       </div>
       <button
         onClick={onOpenCart}
-        className="bg-black text-white px-6 py-2.5 rounded-xl font-medium hover:bg-gray-800 transition-colors shadow-sm"
+        style={{
+          backgroundColor: '#38a169',
+          color: '#fff',
+          border: 'none',
+          padding: '10px 20px',
+          borderRadius: '10px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          fontSize: '14px'
+        }}
       >
         Sepete Git / Sipariş Ver
       </button>

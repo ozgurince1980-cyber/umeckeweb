@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 import ProductModal from "./ProductModal"
-import CartBar from "./CartBar" // 1. Sepet barını içe aktardık
+import CartBar from "./CartBar"
 
 const SUPABASE_URL = "https://yajeiyecxkwmwqkfkxvp.supabase.co"
 const SUPABASE_ANON_KEY = "sb_publishable_pz5KKsdQXXlG7kV239OoJw_YsNuF3w7"
@@ -118,7 +118,7 @@ export default function RestaurantManager() {
     // Modal state'i
     const [selectedProduct, setSelectedProduct] = useState<any>(null)
 
-    // 2. Sepet state'i (Sepetteki ürünleri tutacak)
+    // Sepet state'i
     const [cartItems, setCartItems] = useState<any[]>([])
 
     const [isEditing, setIsEditing] = useState<boolean>(false)
@@ -233,6 +233,20 @@ export default function RestaurantManager() {
         setPasswordError("")
         setUploadMessage("")
     }, [supabase, selectedRestaurant])
+
+    // Sepete ürün ekleme fonksiyonu
+    const handleAddToCart = (newItem: any) => {
+        setCartItems((prevItems) => {
+            const existingIndex = prevItems.findIndex((item) => item.cartId === newItem.cartId);
+            if (existingIndex > -1) {
+                const updated = [...prevItems];
+                updated[existingIndex].quantity += newItem.quantity;
+                return updated;
+            } else {
+                return [...prevItems, newItem];
+            }
+        });
+    }
 
     const handleLoginSubmit = (e: React.FormEvent) => {
         e.preventDefault()
@@ -433,9 +447,6 @@ export default function RestaurantManager() {
             selectedRestaurant.cover_image_url ||
             selectedRestaurant.image_url ||
             fallbackBg
-        const logoImg =
-            selectedRestaurant.logo_url ||
-            "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80"
         const ownerImg =
             selectedRestaurant.owner_photo_url ||
             selectedRestaurant.owner_image_url ||
@@ -486,9 +497,10 @@ export default function RestaurantManager() {
                     minHeight: "100vh",
                     fontFamily: "sans-serif",
                     background: "#f8f9fa",
-                    paddingBottom: "80px",
+                    paddingBottom: "120px",
                     boxSizing: "border-box",
                     overflowX: "hidden",
+                    position: "relative",
                 }}
             >
                 <div
@@ -1240,10 +1252,11 @@ export default function RestaurantManager() {
                     <ProductModal 
                         product={selectedProduct} 
                         onClose={() => setSelectedProduct(null)} 
+                        onAddToCart={handleAddToCart}
                     />
                 )}
 
-                {/* 3. CARTBAR ENTEGRASYONU (Ekranın en altında sepet varsa belirecek) */}
+                {/* CARTBAR ENTEGRASYONU - Sayfanın en altında sabitlenmiş sepet barı */}
                 <CartBar 
                     items={cartItems} 
                     onOpenCart={() => {
