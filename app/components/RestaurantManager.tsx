@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 import ProductModal from "./ProductModal"
 import CartBar from "./CartBar"
+import CartModal from "./CartModal" // 1. CartModal bileşenini içe aktardık
 
 const SUPABASE_URL = "https://yajeiyecxkwmwqkfkxvp.supabase.co"
 const SUPABASE_ANON_KEY = "sb_publishable_pz5KKsdQXXlG7kV239OoJw_YsNuF3w7"
@@ -115,8 +116,9 @@ export default function RestaurantManager() {
     const [menuItems, setMenuItems] = useState<any[]>([])
     const [loading, setLoading] = useState<boolean>(true)
 
-    // Modal state'i
+    // Modal state'leri
     const [selectedProduct, setSelectedProduct] = useState<any>(null)
+    const [isCartModalOpen, setIsCartModalOpen] = useState<boolean>(false) // Sepet modalının açık/kapalı durumu
 
     // Sepet state'i
     const [cartItems, setCartItems] = useState<any[]>([])
@@ -247,6 +249,19 @@ export default function RestaurantManager() {
             }
         });
     }
+
+    // Sepet miktar güncelleme fonksiyonu (+ / -)
+    const handleUpdateQuantity = (cartId: string, delta: number) => {
+        setCartItems((prevItems) => {
+            return prevItems.map((item) => {
+                if (item.cartId === cartId) {
+                    const newQty = item.quantity + delta;
+                    return newQty > 0 ? { ...item, quantity: newQty } : null;
+                }
+                return item;
+            }).filter(Boolean);
+        });
+    };
 
     const handleLoginSubmit = (e: React.FormEvent) => {
         e.preventDefault()
@@ -1247,7 +1262,7 @@ export default function RestaurantManager() {
                     )}
                 </div>
 
-                {/* MODAL ENTEGRASYONU */}
+                {/* MODAL ENTEGRASYONLARI */}
                 {selectedProduct && (
                     <ProductModal 
                         product={selectedProduct} 
@@ -1256,12 +1271,22 @@ export default function RestaurantManager() {
                     />
                 )}
 
-                {/* CARTBAR ENTEGRASYONU - Sayfanın en altında sabitlenmiş sepet barı */}
+                {/* 2. CartModal Entegrasyonu (Sepete Git / Sipariş Ver butonuna basıldığında açılır) */}
+                {isCartModalOpen && (
+                    <CartModal
+                        items={cartItems}
+                        onClose={() => setIsCartModalOpen(false)}
+                        onUpdateQuantity={handleUpdateQuantity}
+                        onClearCart={() => setCartItems([])}
+                        restaurantPhone={selectedRestaurant.phone}
+                        restaurantName={selectedRestaurant.name}
+                    />
+                )}
+
+                {/* CARTBAR ENTEGRASYONU */}
                 <CartBar 
                     items={cartItems} 
-                    onOpenCart={() => {
-                        alert("Sepet detayları ve ödeme ekranı yakında açılacak!");
-                    }} 
+                    onOpenCart={() => setIsCartModalOpen(true)} 
                 />
             </div>
         )
