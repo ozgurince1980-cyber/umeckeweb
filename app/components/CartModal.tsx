@@ -16,7 +16,6 @@ export default function CartModal({
   onClose,
   onUpdateQuantity,
   onClearCart,
-  restaurantPhone,
   restaurantName
 }: CartModalProps) {
   const [customerName, setCustomerName] = useState("");
@@ -35,22 +34,24 @@ export default function CartModal({
       return;
     }
 
-    // WhatsApp Sipariş Metni Oluşturma
-    let message = `🛒 *YENİ SİPARİŞ - ${restaurantName.toUpperCase()}*\n`;
+    // Çok Katmanlı WhatsApp Yönlendirme ve Sipariş Şablonu
+    let message = `🔔 *YENİ PLATFORM SİPARİŞİ (umEcke)*\n`;
+    message += `-----------------------------------\n`;
+    message += `🏛️ *RESTORAN:* *${restaurantName.toUpperCase()}*\n`;
     message += `-----------------------------------\n`;
     message += `👤 *Müşteri:* ${customerName}\n`;
     message += `📞 *Telefon:* ${customerPhone}\n`;
-    message += `🚀 *Servis:* ${serviceOption}\n`;
+    message += `🚀 *Servis Türü:* ${serviceOption}\n`;
     if (serviceOption === "Paket Servis") {
-      message += `📍 *Adres:* ${deliveryAddress || "Belirtilmedi"}\n`;
+      message += `📍 *Teslimat Adresi:* ${deliveryAddress || "Belirtilmedi"}\n`;
     }
-    message += `💳 *Ödeme:* ${paymentMethod}\n`;
-    if (orderNote) message += `📝 *Not:* ${orderNote}\n`;
+    message += `💳 *Ödeme Yöntemi:* ${paymentMethod}\n`;
+    if (orderNote) message += `📝 *Sipariş Notu:* ${orderNote}\n`;
     message += `-----------------------------------\n`;
-    message += `🍽️ *SİPARİŞ DETAYLARI:*\n`;
+    message += `🍽️ *SİPARİŞ EDİLEN ÜRÜNLER:*\n`;
 
     items.forEach((item, index) => {
-      message += `${index + 1}. *${item.quantity}x ${item.name}* (${(item.price * item.quantity).toFixed(2)} €)\n`;
+      message += `${index + 1}. *${item.quantity}x ${item.name}* — ${(item.price * item.quantity).toFixed(2)} €\n`;
       if (item.size) message += `   ▫ Porsiyon: ${item.size.name}\n`;
       if (item.extras && item.extras.length > 0) {
         message += `   ▫ Ekstralar: ${item.extras.map((e: any) => e.name).join(", ")}\n`;
@@ -58,13 +59,14 @@ export default function CartModal({
     });
 
     message += `-----------------------------------\n`;
-    message += `💰 *TOPLAM TUTAR:* *${totalPrice.toFixed(2)} €*\n`;
+    message += `💰 *GENEL TOPLAM:* *${totalPrice.toFixed(2)} €*\n`;
+    message += `ℹ️ *Bu sipariş umEcke dijital altyapısı üzerinden yönlendirilmiştir.*`;
 
-    // WhatsApp Entegrasyonu
-    const cleanPhone = (restaurantPhone || "").replace(/[^0-9]/g, "");
-    const targetPhone = cleanPhone || "49123456789"; // Varsayılan numara
+    // Merkezi Twilio WhatsApp Hattı (+14124246766)
+    const targetPhone = "14124246766"; 
+    
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${targetPhone}?text=${encodedMessage}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodedMessage}`;
 
     window.open(whatsappUrl, "_blank");
     onClearCart();
