@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 import ProductModal from "./ProductModal"
+import CartBar from "./CartBar" // 1. Sepet barını içe aktardık
 
 const SUPABASE_URL = "https://yajeiyecxkwmwqkfkxvp.supabase.co"
 const SUPABASE_ANON_KEY = "sb_publishable_pz5KKsdQXXlG7kV239OoJw_YsNuF3w7"
@@ -114,8 +115,11 @@ export default function RestaurantManager() {
     const [menuItems, setMenuItems] = useState<any[]>([])
     const [loading, setLoading] = useState<boolean>(true)
 
-    // Modal state'i doğru yere eklendi
+    // Modal state'i
     const [selectedProduct, setSelectedProduct] = useState<any>(null)
+
+    // 2. Sepet state'i (Sepetteki ürünleri tutacak)
+    const [cartItems, setCartItems] = useState<any[]>([])
 
     const [isEditing, setIsEditing] = useState<boolean>(false)
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
@@ -1231,13 +1235,21 @@ export default function RestaurantManager() {
                     )}
                 </div>
 
-                {/* MODAL ENTEGRASYONU (En altta) */}
+                {/* MODAL ENTEGRASYONU */}
                 {selectedProduct && (
                     <ProductModal 
                         product={selectedProduct} 
                         onClose={() => setSelectedProduct(null)} 
                     />
                 )}
+
+                {/* 3. CARTBAR ENTEGRASYONU (Ekranın en altında sepet varsa belirecek) */}
+                <CartBar 
+                    items={cartItems} 
+                    onOpenCart={() => {
+                        alert("Sepet detayları ve ödeme ekranı yakında açılacak!");
+                    }} 
+                />
             </div>
         )
     }
