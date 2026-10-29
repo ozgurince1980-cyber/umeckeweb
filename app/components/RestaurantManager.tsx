@@ -1,13 +1,13 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "../../lib/supabase"
 import ProductModal from "./ProductModal"
 import CartBar from "./CartBar"
 import CartModal from "./CartModal"
-
-const SUPABASE_URL = "https://yajeiyecxkwmwqkfkxvp.supabase.co"
-const SUPABASE_ANON_KEY = "sb_publishable_pz5KKsdQXXlG7kV239OoJw_YsNuF3w7"
+import MenuOptionManager from "./MenuOptionManager"
+import { readShortCache, writeShortCache } from "../../lib/shortCache"
+import { useI18n } from "../../lib/i18n"
 
 const DEFAULT_IMAGES: { [key: string]: string } = {
     pizza: "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80",
@@ -109,10 +109,15 @@ function getPlaceholder(productCategory: string, itemName: string = "") {
     return DEFAULT_IMAGES.default
 }
 
-export default function RestaurantManager() {
-    const [supabase, setSupabase] = useState<any>(null)
+type RestaurantManagerProps = { initialRestaurantSlug?: string }
+
+export default function RestaurantManager({ initialRestaurantSlug }: RestaurantManagerProps) {
+    const { t, locale } = useI18n()
     const [restaurants, setRestaurants] = useState<any[]>([])
     const [selectedRestaurant, setSelectedRestaurant] = useState<any>(null)
+    const [badgeByRestaurant, setBadgeByRestaurant] = useState<Record<string, any>>({})
+    const [regions, setRegions] = useState<any[]>([])
+    const [selectedZipcode, setSelectedZipcode] = useState<string>("")
     const [menuItems, setMenuItems] = useState<any[]>([])
     const [loading, setLoading] = useState<boolean>(true)
 
@@ -126,53 +131,66 @@ export default function RestaurantManager() {
     const [isEditing, setIsEditing] = useState<boolean>(false)
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
     const [passwordInput, setPasswordInput] = useState<string>("")
+    const [adminEmail, setAdminEmail] = useState<string>("")
     const [passwordError, setPasswordError] = useState<string>("")
 
     const [editForm, setEditForm] = useState<any>({})
     const [saving, setSaving] = useState<boolean>(false)
     const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false)
     const [uploadMessage, setUploadMessage] = useState<string>("")
+    const [stripeOnboardingLoading, setStripeOnboardingLoading] = useState<boolean>(false)
+    const [subscriptionLoading, setSubscriptionLoading] = useState<string>("")
+    const [financialSummary, setFinancialSummary] = useState<any>(null)
+    const [financialLoading, setFinancialLoading] = useState<boolean>(false)
+    const [financialError, setFinancialError] = useState<string>("")
+    const [financialFrom, setFinancialFrom] = useState<string>("")
+    const [financialTo, setFinancialTo] = useState<string>("")
     const [selectedMenuItemId, setSelectedMenuItemId] = useState<string>("")
+    const [managerTab, setManagerTab] = useState<"overview" | "photos" | "menu" | "profile" | "payments">("overview")
 
     useEffect(() => {
-        const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-        setSupabase(client)
-    }, [])
-
-    useEffect(() => {
-        if (!supabase) return
+        let cancelled = false
         async function fetchRestaurants() {
             setLoading(true)
-            const { data, error } = await supabase
-                .from("restaurants")
-                .select("*")
-            if (!error && data) {
-                const uniqueRestaurants = Array.from(
-                    new Map(data.map((item: any) => [item.id, item])).values()
-                )
-                setRestaurants(uniqueRestaurants)
+            const cached = readShortCache<any>("restaurant-discovery-v1", 30_000)
+            if (cached && !cancelled) {
+                setRestaurants(cached.restaurants || []); setBadgeByRestaurant(cached.badges || {}); setRegions(cached.regions || [])
+                const savedZip=localStorage.getItem("umEckeSelectedZipcode")||""; if(savedZip)setSelectedZipcode(savedZip)
+                if(initialRestaurantSlug){const match=(cached.restaurants||[]).find((item:any)=>item.slug===initialRestaurantSlug);if(match)setSelectedRestaurant(match)}
+                setLoading(false); return
             }
-            setLoading(false)
+            const [restaurantResult,badgeResult,regionResult]=await Promise.all([
+                supabase.from("restaurants").select("id,name,slug,phone,created_at,description,image_url,category,address,rating,is_active,story,cover_image_url,owner_image_url,logo_url,owner_photo_url,features,opening_hours,is_closed,business_type,cuisine_type,product_category,email,website,weekly_hours,parking_info,service_options,payment_methods,vision,zipcode").eq("is_active",true),
+                supabase.rpc("get_all_restaurant_badges"),
+                supabase.from("regions").select("zipcode,city,district,display_order").eq("is_active",true).order("display_order",{ascending:true})
+            ])
+            if(!cancelled&&!restaurantResult.error&&restaurantResult.data){
+                const uniqueRestaurants=Array.from(new Map(restaurantResult.data.map((item:any)=>[item.id,item])).values())
+                const badgeMap:Record<string,any>={};for(const row of badgeResult.data||[])badgeMap[row.restaurant_id]=row
+                const nextRegions=regionResult.data||[];setRestaurants(uniqueRestaurants);setBadgeByRestaurant(badgeMap);setRegions(nextRegions)
+                writeShortCache("restaurant-discovery-v1",{restaurants:uniqueRestaurants,badges:badgeMap,regions:nextRegions})
+                const savedZip=localStorage.getItem("umEckeSelectedZipcode")||"";if(savedZip)setSelectedZipcode(savedZip)
+                if(initialRestaurantSlug){const match=uniqueRestaurants.find((item:any)=>item.slug===initialRestaurantSlug);if(match)setSelectedRestaurant(match)}
+            }
+            if(!cancelled)setLoading(false)
         }
-        fetchRestaurants()
-    }, [supabase])
+        void fetchRestaurants();return()=>{cancelled=true}
+    }, [initialRestaurantSlug])
 
     useEffect(() => {
         if (!supabase || !selectedRestaurant) return
         async function fetchMenu() {
-            const { data, error } = await supabase
-                .from("menu_items")
-                .select("*")
-                .eq("restaurant_id", selectedRestaurant.id)
-            if (!error && data) {
-                const uniqueMenu = Array.from(
-                    new Map(data.map((item: any) => [item.id, item])).values()
-                )
-                setMenuItems(uniqueMenu)
-                if (uniqueMenu.length > 0) setSelectedMenuItemId(uniqueMenu[0].id)
+            const cacheKey=`menu:${selectedRestaurant.id}`;const cachedMenu=readShortCache<any[]>(cacheKey,30_000)
+            if(cachedMenu){setMenuItems(cachedMenu);if(cachedMenu.length>0)setSelectedMenuItemId(String(cachedMenu[0].id));return}
+            const {data,error}=await supabase.from("menu_items").select("*").eq("restaurant_id",selectedRestaurant.id).order("category",{ascending:true})
+            if(!error&&data){
+                const uniqueMenu=Array.from(new Map(data.map((item:any)=>[item.id,item])).values()) as any[]
+                const ids=uniqueMenu.map((item:any)=>item.id).join(",");let optionMap:Record<string,any[]>={}
+                if(ids){try{const response=await fetch(`/api/menu-options?menu_item_ids=${encodeURIComponent(ids)}`,{cache:"no-store"});const payload=await response.json();if(response.ok)optionMap=payload.optionsByMenuItem||{}}catch(e){console.warn("Menu option fetch failed",e)}}
+                const withOptions=uniqueMenu.map((item:any)=>({...item,optionGroups:optionMap[String(item.id)]||[]}));setMenuItems(withOptions);writeShortCache(cacheKey,withOptions);if(withOptions.length>0)setSelectedMenuItemId(String(withOptions[0].id))
             }
         }
-        fetchMenu()
+        void fetchMenu()
 
         let parsedHours = DEFAULT_HOURS_STATE
         try {
@@ -189,7 +207,7 @@ export default function RestaurantManager() {
         const defaultStory = selectedRestaurant.name
             ?.toLowerCase()
             .includes("pascham")
-            ? "Ben İrfan Doğan. 30 yıldır Bad Doberan’ın ilk dönercisi Pascham Döner’in başındayım. Kahramanmaraş’tan bu güzel kasabaya geldiğimde burası dönerle henüz tanışmamıştı; o günlerden bugüne her şişi kendi evladımın yiyeceği titizlikle, en taze etlerle ve kusursuz bir hijyen anlayışıyla hazırladım. Müşterilerime sunduğum her lokmanın lezzeti kadar güvenli ve temiz olması benim için her şeyden önce gelir. Şimdi umEcke Ekosistemi ile dijitalde de kendi kaderimizi elimize alıyoruz. Siparişlerinizi komisyoncu dev platformlar yerine doğrudan bizden vermeniz; hem bizim 30 yıllık emeğimize ve hijyenik tezgahımıza sahip çıkmanız, hem de yerel esnafın bağımsız kalması için çok önemlidir. Gelin, bu lezzeti ve dayanışmayı birlikte yaşatalım!"
+            ? "Ben İrfan Doğan. 30 yıldır Bad Doberan’ın ilk dönercisi Pascham Döner’in başındayım. Kahramanmaraş’tan bu güzel kasabaya geldiğimde burası dönerle henüz tanışmamıştı; o günlerden bugüne her şişi kendi evladımın yiyeceği titizlikle, en taze etlerle ve kusursuz bir hijyen anlayışıyla hazırladım. Müşterilerime sunduğum her lokmanın lezzeti kadar güvenli ve temiz olması benim için her şeyden önce gelir. Şimdi Solidareaty Ekosistemi ile dijitalde de kendi kaderimizi elimize alıyoruz. Siparişlerinizi komisyoncu dev platformlar yerine doğrudan bizden vermeniz; hem bizim 30 yıllık emeğimize ve hijyenik tezgahımıza sahip çıkmanız, hem de yerel esnafın bağımsız kalması için çok önemlidir. Gelin, bu lezzeti ve dayanışmayı birlikte yaşatalım!"
             : selectedRestaurant.story ||
               "Geleneksel lezzetleri modern dokunuşlarla buluşturduğumuz mekanımızda hizmetinizdeyiz."
 
@@ -230,7 +248,6 @@ export default function RestaurantManager() {
             weekly_hours: parsedHours,
             is_closed: selectedRestaurant.is_closed || false,
         })
-        setIsAuthenticated(false)
         setPasswordInput("")
         setPasswordError("")
         setUploadMessage("")
@@ -261,15 +278,404 @@ export default function RestaurantManager() {
         });
     };
 
-    const handleLoginSubmit = (e: React.FormEvent) => {
-        e.preventDefault()
-        const correctPassword = selectedRestaurant.password || "umecke2026"
-        if (passwordInput === correctPassword) {
-            setIsAuthenticated(true)
-            setPasswordError("")
-        } else {
-            setPasswordError("Hatalı şifre! Lütfen işletme şifrenizi giriniz.")
+    const formatLocalDate = (date: Date) => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, "0")
+        const day = String(date.getDate()).padStart(2, "0")
+        return `${year}-${month}-${day}`
+    }
+
+    const localDateTimeToIso = (dateText: string, endOfDay = false) => {
+        if (!dateText) return null
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText)
+        if (!match) throw new Error("Geçersiz tarih formatı.")
+        const [, yearText, monthText, dayText] = match
+        const year = Number(yearText)
+        const month = Number(monthText)
+        const day = Number(dayText)
+        const date = new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0)
+        if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+            throw new Error("Geçersiz tarih seçildi.")
         }
+        return date.toISOString()
+    }
+
+    const loadFinancialSummary = async (
+        selectedFrom = financialFrom,
+        selectedTo = financialTo
+    ) => {
+        if (!selectedRestaurant?.id) return
+        setFinancialLoading(true)
+        setFinancialError("")
+        try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+            if (sessionError || !session?.access_token) throw new Error("Aktif Auth oturumu bulunamadı.")
+
+            const fromIso = selectedFrom
+                ? localDateTimeToIso(selectedFrom, false)
+                : null
+            const toIso = selectedTo
+                ? localDateTimeToIso(selectedTo, true)
+                : null
+
+            const response = await fetch("/api/finance/restaurant-summary", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({
+                    restaurant_id: selectedRestaurant.id,
+                    from: fromIso,
+                    to: toIso,
+                }),
+            })
+            const result = await response.json()
+            if (!response.ok || !result.success) throw new Error(result.error || "Finans raporu alınamadı.")
+            setFinancialSummary(result.data)
+        } catch (error) {
+            console.error("Finans özeti hatası:", error)
+            setFinancialError(error instanceof Error ? error.message : "Finans raporu alınamadı.")
+        } finally {
+            setFinancialLoading(false)
+        }
+    }
+
+    const setFinancialPeriod = (period: "today" | "yesterday" | "week" | "month" | "all") => {
+        const now = new Date()
+        let nextFrom = ""
+        let nextTo = formatLocalDate(now)
+
+        if (period !== "all") {
+            const startDate = new Date(now)
+            if (period === "today") {
+                startDate.setHours(0, 0, 0, 0)
+            }
+            if (period === "yesterday") {
+                startDate.setDate(startDate.getDate() - 1)
+                startDate.setHours(0, 0, 0, 0)
+                nextTo = formatLocalDate(startDate)
+            }
+            if (period === "week") {
+                const day = startDate.getDay() || 7
+                startDate.setDate(startDate.getDate() - day + 1)
+                startDate.setHours(0, 0, 0, 0)
+            }
+            if (period === "month") {
+                startDate.setDate(1)
+                startDate.setHours(0, 0, 0, 0)
+            }
+            nextFrom = formatLocalDate(startDate)
+        }
+
+        setFinancialFrom(nextFrom)
+        setFinancialTo(nextTo)
+        setTimeout(() => loadFinancialSummary(nextFrom, nextTo), 0)
+    }
+
+    useEffect(() => {
+        if (isAuthenticated && selectedRestaurant?.id) loadFinancialSummary()
+    }, [isAuthenticated, selectedRestaurant?.id])
+
+    const renderCardBadge = (restaurantId: string) => {
+        const badge = badgeByRestaurant[restaurantId];
+        if (!badge || badge.star_level < 1) return null;
+        const starLevel = Math.min(5, Math.max(1, badge.star_level));
+        const resId = restaurantId.replace(/[^a-zA-Z0-9]/g, "");
+        return (
+            <div
+                style={{
+                    flexShrink: 0,
+                    width: "60px",
+                    height: "72px",
+                    filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.22))",
+                    cursor: "pointer",
+                    marginLeft: "8px",
+                    marginTop: "4px"
+                }}
+                title={`Lokaler Unterstützer (${starLevel} Yıldız)`}
+            >
+                <svg viewBox="0 0 420 500" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                        <radialGradient id={`m_${resId}`} cx="35%" cy="28%" r="75%">
+                            <stop stopColor="#fff4ad" />
+                            <stop offset=".38" stopColor="#f4c548" />
+                            <stop offset="1" stopColor="#a9620d" />
+                        </radialGradient>
+                        <linearGradient id={`r_${resId}`} x1="0" y1="0" x2="1" y2="1">
+                            <stop stopColor="#fff5b5" />
+                            <stop offset=".45" stopColor="#e0a52b" />
+                            <stop offset="1" stopColor="#8b4e08" />
+                        </linearGradient>
+                        <linearGradient id={`rib_${resId}`} x1="0" y1="0" x2="1" y2="1">
+                            <stop stopColor="#f05a28" />
+                            <stop offset="1" stopColor="#b72f1b" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M128 320l-18 130 67-43 33 55 10-142z" fill={`url(#rib_${resId})`} stroke="#8e2418" strokeWidth="3" />
+                    <path d="M292 320l18 130-67-43-33 55-10-142z" fill={`url(#rib_${resId})`} stroke="#8e2418" strokeWidth="3" />
+                    <circle cx="210" cy="190" r="153" fill="#172033" stroke="#0b1220" strokeWidth="4" />
+                    <circle cx="210" cy="190" r="143" fill={`url(#m_${resId})`} stroke={`url(#r_${resId})`} strokeWidth="9" />
+                    <circle cx="210" cy="190" r="112" fill="#172033" fillOpacity=".94" stroke="#f2c44d" strokeWidth="2" />
+                    <path id={`arc_${resId}`} d="M 92,190 A 118,118 0 0,1 328,190" fill="none" />
+                    <text fill="#172033" stroke="#172033" strokeWidth="0.35" paintOrder="stroke" fontFamily="Inter,Arial,sans-serif" fontSize="12" fontWeight="900" letterSpacing="1.6">
+                        <textPath href={`#arc_${resId}`} startOffset="50%" textAnchor="middle">REGIONAL • VERBUNDEN</textPath>
+                    </text>
+                    <text x="210" y="195" textAnchor="middle" fill="#fff" fontFamily="Inter,Arial,sans-serif" fontSize="42" fontWeight="900" letterSpacing="-1.5">Solidareaty</text>
+                    <g stroke="#fff3a6" strokeWidth="1.4">
+                        <path fill={starLevel >= 1 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 1 ? "#fff3a6" : "#4e5e73"} d="M142 197l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 1 ? "1" : "0.3"} />
+                        <path fill={starLevel >= 2 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 2 ? "#fff3a6" : "#4e5e73"} d="M169 230l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 2 ? "1" : "0.3"} />
+                        <path fill={starLevel >= 3 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 3 ? "#fff3a6" : "#4e5e73"} d="M210 240l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 3 ? "1" : "0.3"} />
+                        <path fill={starLevel >= 4 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 4 ? "#fff3a6" : "#4e5e73"} d="M251 230l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 4 ? "1" : "0.3"} />
+                        <path fill={starLevel >= 5 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 5 ? "#fff3a6" : "#4e5e73"} d="M278 197l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 5 ? "1" : "0.3"} />
+                    </g>
+                    <path d="M65 320l38-22h214l38 22-38 66H103z" fill="#8f2418" stroke="#6f1b14" strokeWidth="3" />
+                    <path d="M72 309l35-18h206l35 18-35 54H107z" fill={`url(#rib_${resId})`} stroke="#ff8a4e" strokeWidth="2" />
+                    <text x="210" y="338" textAnchor="middle" fill="#fff7d6" fontFamily="Inter,Arial,sans-serif" fontSize="16" fontWeight="900" letterSpacing=".7">Lokaler Unterstützer</text>
+                </svg>
+            </div>
+        );
+    };
+
+    const renderDetailCardBadge = (badge: any) => {
+        if (!badge || badge.star_level < 1) return null;
+        const starLevel = Math.min(5, Math.max(1, badge.star_level));
+        const resId = "detail_sel";
+        return (
+            <div
+                style={{
+                    background: "linear-gradient(135deg, #29343C 0%, #29343C 100%)",
+                    padding: "20px 25px",
+                    borderRadius: "16px",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                    border: "2px solid #E69F5C",
+                    color: "#fff",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    textAlign: "center",
+                    boxSizing: "border-box",
+                }}
+            >
+                <div style={{ width: "95px", height: "115px", margin: "0 auto" }}>
+                    <svg viewBox="0 0 420 500" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                            <radialGradient id={`m_${resId}`} cx="35%" cy="28%" r="75%">
+                                <stop stopColor="#fff4ad" />
+                                <stop offset=".38" stopColor="#f4c548" />
+                                <stop offset="1" stopColor="#a9620d" />
+                            </radialGradient>
+                            <linearGradient id={`r_${resId}`} x1="0" y1="0" x2="1" y2="1">
+                                <stop stopColor="#fff5b5" />
+                                <stop offset=".45" stopColor="#e0a52b" />
+                                <stop offset="1" stopColor="#8b4e08" />
+                            </linearGradient>
+                            <linearGradient id={`rib_${resId}`} x1="0" y1="0" x2="1" y2="1">
+                                <stop stopColor="#f05a28" />
+                                <stop offset="1" stopColor="#b72f1b" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M128 320l-18 130 67-43 33 55 10-142z" fill={`url(#rib_${resId})`} stroke="#8e2418" strokeWidth="3" />
+                        <path d="M292 320l18 130-67-43-33 55-10-142z" fill={`url(#rib_${resId})`} stroke="#8e2418" strokeWidth="3" />
+                        <circle cx="210" cy="190" r="153" fill="#172033" stroke="#0b1220" strokeWidth="4" />
+                        <circle cx="210" cy="190" r="143" fill={`url(#m_${resId})`} stroke={`url(#r_${resId})`} strokeWidth="9" />
+                        <circle cx="210" cy="190" r="112" fill="#172033" fillOpacity=".94" stroke="#f2c44d" strokeWidth="2" />
+                        <path id={`arc_${resId}`} d="M 92,190 A 118,118 0 0,1 328,190" fill="none" />
+                        <text fill="#172033" stroke="#172033" strokeWidth="0.35" paintOrder="stroke" fontFamily="Inter,Arial,sans-serif" fontSize="12" fontWeight="900" letterSpacing="1.6">
+                            <textPath href={`#arc_${resId}`} startOffset="50%" textAnchor="middle">REGIONAL • VERBUNDEN</textPath>
+                        </text>
+                        <text x="210" y="195" textAnchor="middle" fill="#fff" fontFamily="Inter,Arial,sans-serif" fontSize="42" fontWeight="900" letterSpacing="-1.5">Solidareaty</text>
+                        <g stroke="#fff3a6" strokeWidth="1.4">
+                            <path fill={starLevel >= 1 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 1 ? "#fff3a6" : "#4e5e73"} d="M142 197l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 1 ? "1" : "0.3"} />
+                            <path fill={starLevel >= 2 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 2 ? "#fff3a6" : "#4e5e73"} d="M169 230l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 2 ? "1" : "0.3"} />
+                            <path fill={starLevel >= 3 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 3 ? "#fff3a6" : "#4e5e73"} d="M210 240l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 3 ? "1" : "0.3"} />
+                            <path fill={starLevel >= 4 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 4 ? "#fff3a6" : "#4e5e73"} d="M251 230l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 4 ? "1" : "0.3"} />
+                            <path fill={starLevel >= 5 ? `url(#m_${resId})` : "#2e3b4e"} stroke={starLevel >= 5 ? "#fff3a6" : "#4e5e73"} d="M278 197l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2z" opacity={starLevel >= 5 ? "1" : "0.3"} />
+                        </g>
+                        <path d="M65 320l38-22h214l38 22-38 66H103z" fill="#8f2418" stroke="#6f1b14" strokeWidth="3" />
+                        <path d="M72 309l35-18h206l35 18-35 54H107z" fill={`url(#rib_${resId})`} stroke="#ff8a4e" strokeWidth="2" />
+                        <text x="210" y="338" textAnchor="middle" fill="#fff7d6" fontFamily="Inter,Arial,sans-serif" fontSize="16" fontWeight="900" letterSpacing=".7">Lokaler Unterstützer</text>
+                    </svg>
+                </div>
+                <h4 style={{ margin: "10px 0 4px 0", fontSize: "15px", color: "#FAC796", fontWeight: "800" }}>
+                    🏅 Lokaler Unterstützer · {starLevel} Yıldız
+                </h4>
+                <p style={{ margin: "0 0 10px 0", fontSize: "12px", color: "#94a3b8", lineHeight: "1.4" }}>
+                    {badge.badge_description || "Bu işletme yerel üreticileri desteklemektedir."}
+                </p>
+                <div style={{ display: "flex", justifyContent: "center", gap: "12px", fontSize: "11px", color: "#cbd5e1" }}>
+                    <span>🌾 <strong>{badge.unique_producer_count || 1}</strong> Üretici</span>
+                    <span>⭐ <strong>{badge.total_points || 0}</strong> Puan</span>
+                </div>
+            </div>
+        );
+    };
+
+    const handleStripeOnboarding = async () => {
+        if (!selectedRestaurant?.id) {
+            alert("Restoran bilgisi bulunamadı.")
+            return
+        }
+
+        setStripeOnboardingLoading(true)
+
+        try {
+            const {
+                data: { session },
+                error: sessionError,
+            } = await supabase.auth.getSession()
+
+            if (sessionError || !session?.access_token) {
+                throw new Error("Aktif Auth oturumu bulunamadı. Lütfen tekrar giriş yapın.")
+            }
+
+            const response = await fetch("/api/stripe/connect/onboarding", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({
+                    restaurant_id: selectedRestaurant.id,
+                }),
+            })
+
+            const result = await response.json()
+
+            if (!response.ok || !result.success || !result.onboarding_url) {
+                throw new Error(result.error || "Stripe onboarding bağlantısı oluşturulamadı.")
+            }
+
+            window.location.href = result.onboarding_url
+        } catch (error) {
+            console.error("Stripe onboarding hatası:", error)
+            alert(error instanceof Error ? error.message : "Stripe onboarding başlatılamadı.")
+        } finally {
+            setStripeOnboardingLoading(false)
+        }
+    }
+
+    const handleSubscriptionCheckout = async (planKey: "basic" | "premium") => {
+        if (!selectedRestaurant?.id) {
+            alert("Restoran bilgisi bulunamadı.")
+            return
+        }
+
+        setSubscriptionLoading(planKey)
+
+        try {
+            const {
+                data: { session },
+                error: sessionError,
+            } = await supabase.auth.getSession()
+
+            if (sessionError || !session?.access_token) {
+                throw new Error("Aktif Auth oturumu bulunamadı. Lütfen tekrar giriş yapın.")
+            }
+
+            const response = await fetch("/api/stripe/subscription/checkout", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({
+                    restaurant_id: selectedRestaurant.id,
+                    plan_key: planKey,
+                }),
+            })
+
+            const result = await response.json()
+
+            if (!response.ok || !result.success || !result.checkout_url) {
+                throw new Error(result.error || "Abonelik Checkout bağlantısı oluşturulamadı.")
+            }
+
+            window.location.href = result.checkout_url
+        } catch (error) {
+            console.error("Abonelik Checkout hatası:", error)
+            alert(error instanceof Error ? error.message : "Abonelik başlatılamadı.")
+        } finally {
+            setSubscriptionLoading("")
+        }
+    }
+
+    const handleLoginSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+
+        if (!selectedRestaurant?.id) {
+            setPasswordError("Restoran bilgisi bulunamadı.")
+            return
+        }
+
+        if (!passwordInput.trim()) {
+            setPasswordError("Lütfen şifrenizi giriniz.")
+            return
+        }
+
+        // E-posta girildiyse yeni Supabase Auth / platform_admin akışı kullanılır.
+        if (adminEmail.trim()) {
+            const { error: authError } = await supabase.auth.signInWithPassword({
+                email: adminEmail.trim(),
+                password: passwordInput,
+            })
+
+            if (authError) {
+                console.error("Platform admin giriş hatası:", authError)
+                setPasswordError("E-posta veya şifre hatalı.")
+                return
+            }
+
+            const { data: isPlatformAdmin, error: adminError } =
+                await supabase.rpc("is_platform_admin")
+
+            if (adminError) {
+                console.error("Platform admin yetki kontrolü hatası:", adminError)
+                await supabase.auth.signOut()
+                setPasswordError("Yetki kontrolü yapılamadı.")
+                return
+            }
+
+            if (isPlatformAdmin === true) {
+                setIsAuthenticated(true)
+                setPasswordError("")
+                setPasswordInput("")
+                return
+            }
+
+            const { data: canReadRestaurant, error: permissionError } =
+                await supabase.rpc("has_permission", {
+                    p_permission_key: "restaurant.read",
+                    p_restaurant_id: selectedRestaurant.id,
+                    p_producer_id: null,
+                })
+
+            if (permissionError) {
+                console.error("Restoran yetki kontrolü hatası:", permissionError)
+                await supabase.auth.signOut()
+                setPasswordError("Restoran yetkisi kontrol edilemedi.")
+                return
+            }
+
+            if (canReadRestaurant === true) {
+                setIsAuthenticated(true)
+                setPasswordError("")
+                setPasswordInput("")
+                return
+            }
+
+            await supabase.auth.signOut()
+            setPasswordError("Bu restoranda yönetim yetkiniz yok.")
+            return
+        }
+
+        // Legacy plaintext restaurant-password login was disabled during the
+        // security hardening. Restaurant managers must use Supabase Auth.
+        setPasswordError(
+            "İşletme paneline girmek için Supabase Auth e-posta hesabınızı kullanın. Eski restoran şifresi girişi kapatıldı."
+        )
+        setPasswordInput("")
+        return
     }
 
     const handleDayHourChange = (dayKey: string, field: string, value: any) => {
@@ -426,7 +832,6 @@ export default function RestaurantManager() {
         if (!error) {
             setSelectedRestaurant({ ...selectedRestaurant, ...editForm })
             setIsEditing(false)
-            setIsAuthenticated(false)
             alert("İşletme bilgileri başarıyla Supabase'e kaydedildi!")
         } else {
             alert("Güncellenirken bir hata oluştu: " + error.message)
@@ -468,7 +873,7 @@ export default function RestaurantManager() {
         const defaultStory = selectedRestaurant.name
             ?.toLowerCase()
             .includes("pascham")
-            ? "Ben İrfan Doğan. 30 yıldır Bad Doberan’ın ilk dönercisi Pascham Döner’in başındayım. Kahramanmaraş’tan bu güzel kasabaya geldiğimde burası dönerle henüz tanışmamıştı; o günlerden bugüne her şişi kendi evladımın yiyeceği titizlikle, en taze etlerle ve kusursuz bir hijyen anlayışıyla hazırladım. Müşterilerime sunduğum her lokmanın lezzeti kadar güvenli ve temiz olması benim için her şeyden önce gelir. Şimdi umEcke Ekosistemi ile dijitalde de kendi kaderimizi elimize alıyoruz. Siparişlerinizi komisyoncu dev platformlar yerine doğrudan bizden vermeniz; hem bizim 30 yıllık emeğimize ve hijyenik tezgahımıza sahip çıkmanız, hem de yerel esnafın bağımsız kalması için çok önemlidir. Gelin, bu lezzeti ve dayanışmayı birlikte yaşatalım!"
+            ? "Ben İrfan Doğan. 30 yıldır Bad Doberan’ın ilk dönercisi Pascham Döner’in başındayım. Kahramanmaraş’tan bu güzel kasabaya geldiğimde burası dönerle henüz tanışmamıştı; o günlerden bugüne her şişi kendi evladımın yiyeceği titizlikle, en taze etlerle ve kusursuz bir hijyen anlayışıyla hazırladım. Müşterilerime sunduğum her lokmanın lezzeti kadar güvenli ve temiz olması benim için her şeyden önce gelir. Şimdi Solidareaty Ekosistemi ile dijitalde de kendi kaderimizi elimize alıyoruz. Siparişlerinizi komisyoncu dev platformlar yerine doğrudan bizden vermeniz; hem bizim 30 yıllık emeğimize ve hijyenik tezgahımıza sahip çıkmanız, hem de yerel esnafın bağımsız kalması için çok önemlidir. Gelin, bu lezzeti ve dayanışmayı birlikte yaşatalım!"
             : selectedRestaurant.story ||
               "Geleneksel lezzetleri modern dokunuşlarla buluşturduğumuz mekanımızda hizmetinizdeyiz."
 
@@ -545,7 +950,7 @@ export default function RestaurantManager() {
                             fontWeight: "bold",
                         }}
                     >
-                        ← Back to Restaurants
+                        ← {t("restaurant_back")}
                     </button>
                     <button
                         onClick={() => {
@@ -563,8 +968,8 @@ export default function RestaurantManager() {
                         }}
                     >
                         {isEditing
-                            ? "✖ Paneli Kapat"
-                            : "🔒 İşletme Paneli (Giriş Yap)"}
+                            ? `✖ ${t("restaurant_panel_close")}`
+                            : `🔒 ${t("restaurant_panel_login")}`}
                     </button>
                 </div>
 
@@ -587,9 +992,16 @@ export default function RestaurantManager() {
                             İşletme Yetkili Girişi
                         </h2>
                         <p style={{ color: "#666", fontSize: "14px", marginBottom: "25px" }}>
-                            <strong>{selectedRestaurant.name}</strong> yönetim paneline erişmek için lütfen işletme şifrenizi girin.
+                            <strong>{selectedRestaurant.name}</strong> yönetim paneline erişmek için giriş yapın.
                         </p>
                         <form onSubmit={handleLoginSubmit} style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+                            <input
+                                type="email"
+                                placeholder="Platform admin e-postası (isteğe bağlı)"
+                                value={adminEmail}
+                                onChange={(e) => setAdminEmail(e.target.value)}
+                                style={{ width: "100%", padding: "12px", borderRadius: "6px", border: "1px solid #ccc", boxSizing: "border-box", fontSize: "16px" }}
+                            />
                             <input
                                 type="password"
                                 placeholder="İşletme Şifresi"
@@ -647,8 +1059,105 @@ export default function RestaurantManager() {
                             <span style={{ background: "#c6f6d5", color: "#22543d", padding: "6px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
                                 ✓ Yetkili Oturumu Açık
                             </span>
+
                         </div>
 
+                        <div role="tablist" aria-label="Business management sections" style={{ display: "flex", gap: "8px", overflowX: "auto", borderBottom: "1px solid #e2e8f0", paddingBottom: "10px", marginBottom: "20px" }}>
+                            <button type="button" role="tab" id="manager-tab-overview" aria-selected={managerTab === "overview"} aria-controls="manager-panel-overview" onClick={() => setManagerTab("overview")} style={{ flex: "0 0 auto", padding: "10px 14px", borderRadius: "10px", border: managerTab === "overview" ? "1px solid #c2410c" : "1px solid #e2e8f0", background: managerTab === "overview" ? "#fff7ed" : "#fff", color: managerTab === "overview" ? "#9a3412" : "#73818C", fontWeight: 800, fontSize: "13px", cursor: "pointer" }}>
+                                {locale === "de" ? "Übersicht & Finanzen" : locale === "tr" ? "Genel Bakış & Finans" : "Overview & Finance"}
+                            </button>
+                            <button type="button" role="tab" id="manager-tab-photos" aria-selected={managerTab === "photos"} aria-controls="manager-panel-photos" onClick={() => setManagerTab("photos")} style={{ flex: "0 0 auto", padding: "10px 14px", borderRadius: "10px", border: managerTab === "photos" ? "1px solid #c2410c" : "1px solid #e2e8f0", background: managerTab === "photos" ? "#fff7ed" : "#fff", color: managerTab === "photos" ? "#9a3412" : "#73818C", fontWeight: 800, fontSize: "13px", cursor: "pointer" }}>
+                                {locale === "de" ? "Fotos" : locale === "tr" ? "Fotoğraflar" : "Photos"}
+                            </button>
+                            <button type="button" role="tab" id="manager-tab-menu" aria-selected={managerTab === "menu"} aria-controls="manager-panel-menu" onClick={() => setManagerTab("menu")} style={{ flex: "0 0 auto", padding: "10px 14px", borderRadius: "10px", border: managerTab === "menu" ? "1px solid #c2410c" : "1px solid #e2e8f0", background: managerTab === "menu" ? "#fff7ed" : "#fff", color: managerTab === "menu" ? "#9a3412" : "#73818C", fontWeight: 800, fontSize: "13px", cursor: "pointer" }}>
+                                {locale === "de" ? "Speisekarte & Optionen" : locale === "tr" ? "Menü ve Seçenekler" : "Menu & Options"}
+                            </button>
+                            <button type="button" role="tab" id="manager-tab-profile" aria-selected={managerTab === "profile"} aria-controls="manager-panel-profile" onClick={() => setManagerTab("profile")} style={{ flex: "0 0 auto", padding: "10px 14px", borderRadius: "10px", border: managerTab === "profile" ? "1px solid #c2410c" : "1px solid #e2e8f0", background: managerTab === "profile" ? "#fff7ed" : "#fff", color: managerTab === "profile" ? "#9a3412" : "#73818C", fontWeight: 800, fontSize: "13px", cursor: "pointer" }}>
+                                {locale === "de" ? "Unternehmensprofil" : locale === "tr" ? "İşletme Profili" : "Business Profile"}
+                            </button>
+                            <button type="button" role="tab" id="manager-tab-payments" aria-selected={managerTab === "payments"} aria-controls="manager-panel-payments" onClick={() => setManagerTab("payments")} style={{ flex: "0 0 auto", padding: "10px 14px", borderRadius: "10px", border: managerTab === "payments" ? "1px solid #c2410c" : "1px solid #e2e8f0", background: managerTab === "payments" ? "#fff7ed" : "#fff", color: managerTab === "payments" ? "#9a3412" : "#73818C", fontWeight: 800, fontSize: "13px", cursor: "pointer" }}>
+                                {locale === "de" ? "Zahlungen & Tarife" : locale === "tr" ? "Ödemeler ve Paketler" : "Payments & Plans"}
+                            </button>
+                        </div>
+
+                        {managerTab === "payments" && (
+                            <section role="tabpanel" id="manager-panel-payments" aria-labelledby="manager-tab-payments" style={{ border: "1px solid #e2e8f0", borderRadius: "14px", background: "#fff", padding: "18px", marginBottom: "20px" }}>
+                                <h3 style={{ margin: "0 0 6px", fontSize: "18px", fontWeight: 800, color: "#29343C" }}>{locale === "de" ? "Zahlungen & Abonnements" : locale === "tr" ? "Ödemeler ve Abonelikler" : "Payments & subscriptions"}</h3>
+                                <p style={{ margin: "0 0 14px", color: "#73818C", fontSize: "13px" }}>{locale === "de" ? "Stripe-Einrichtung und Abo-Checkout sind getrennte Abläufe." : locale === "tr" ? "Stripe kurulumu ve abonelik işlemleri birbirinden ayrıdır." : "Stripe setup and subscription checkout are separate actions."}</p>
+                            <button
+                                type="button"
+                                onClick={handleStripeOnboarding}
+                                disabled={stripeOnboardingLoading}
+                                style={{
+                                    marginTop: "10px",
+                                    background: stripeOnboardingLoading ? "#a0aec0" : "#635bff",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "8px 12px",
+                                    borderRadius: "8px",
+                                    fontSize: "12px",
+                                    fontWeight: "bold",
+                                    cursor: stripeOnboardingLoading ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                {stripeOnboardingLoading ? "Stripe açılıyor..." : "💳 Stripe hesabını tamamla"}
+                            </button>
+                            <div style={{ marginTop: "14px", padding: "12px", border: "1px solid #e2e8f0", borderRadius: "10px", background: "#f8fafc" }}>
+                                <div style={{ fontSize: "12px", fontWeight: "bold", color: "#29343C", marginBottom: "8px" }}>Platform aboneliği</div>
+                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSubscriptionCheckout("basic")}
+                                        disabled={Boolean(subscriptionLoading)}
+                                        style={{ background: subscriptionLoading === "basic" ? "#94a3b8" : "#0f766e", color: "#fff", border: "none", padding: "8px 10px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: subscriptionLoading ? "not-allowed" : "pointer" }}
+                                    >
+                                        {subscriptionLoading === "basic" ? "Açılıyor..." : "Basic · 9,90 € / ay"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSubscriptionCheckout("premium")}
+                                        disabled={Boolean(subscriptionLoading)}
+                                        style={{ background: subscriptionLoading === "premium" ? "#94a3b8" : "#7c3aed", color: "#fff", border: "none", padding: "8px 10px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: subscriptionLoading ? "not-allowed" : "pointer" }}
+                                    >
+                                        {subscriptionLoading === "premium" ? "Açılıyor..." : "Premium · 99,90 € / ay"}
+                                    </button>
+                                </div>
+                            </div>
+                            </section>
+                        )}
+
+                        {managerTab === "overview" && (
+                            <div role="tabpanel" id="manager-panel-overview" aria-labelledby="manager-tab-overview">
+
+                            <>
+                        <div style={{ marginTop: "16px", marginBottom: "20px", padding: "16px", border: "1px solid #e2e8f0", borderRadius: "12px", background: "#ffffff" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800 }}>Finans Özeti</h3>
+                                    <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#73818C" }}>Ödenmiş siparişler ve Solidareaty finansal dağılımı</p>
+                                </div>
+                                <button type="button" onClick={() => { void loadFinancialSummary(); }} disabled={financialLoading} style={{ background: financialLoading ? "#94a3b8" : "#29343C", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 12px", fontWeight: 700, cursor: financialLoading ? "not-allowed" : "pointer" }}>{financialLoading ? "Yükleniyor..." : "Yenile"}</button>
+                            </div>
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", marginTop: "12px" }}>
+                                {[['today', 'Bugün'], ['yesterday', 'Dün'], ['week', 'Bu hafta'], ['month', 'Bu ay'], ['all', 'Tümü']].map(([key, label]) => <button key={key} type="button" onClick={() => { setFinancialPeriod(key as "today" | "yesterday" | "week" | "month" | "all"); setTimeout(loadFinancialSummary, 0) }} style={{ border: "1px solid #cbd5e1", background: "#fff", color: "#29343C", borderRadius: "7px", padding: "6px 9px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>{label}</button>)}
+                                <input type="date" value={financialFrom} onChange={(e) => setFinancialFrom(e.target.value)} style={{ padding: "6px", border: "1px solid #cbd5e1", borderRadius: "7px", fontSize: "11px" }} />
+                                <span style={{ fontSize: "11px", color: "#73818C" }}>–</span>
+                                <input type="date" value={financialTo} onChange={(e) => setFinancialTo(e.target.value)} style={{ padding: "6px", border: "1px solid #cbd5e1", borderRadius: "7px", fontSize: "11px" }} />
+                                <button type="button" onClick={() => loadFinancialSummary()} style={{ border: "1px solid #cbd5e1", background: "#fff", color: "#29343C", borderRadius: "7px", padding: "6px 9px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>Tarihleri uygula</button>
+                            </div>
+                            {financialError && <div style={{ marginTop: "10px", color: "#b91c1c", fontSize: "13px" }}>{financialError}</div>}
+                            {financialSummary && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: "10px", marginTop: "14px" }}>
+                                {[["Brüt satış", financialSummary.gross_sales], ["Komisyon matrahı", financialSummary.commissionable_sales], ["Solidareaty payı", financialSummary.platform_fees], ["Net işletme payı", financialSummary.restaurant_net_amount], ["İadeler", financialSummary.refunded_amount], ["Ödenmiş sipariş", financialSummary.paid_order_count]].map(([label, value]) => <div key={String(label)} style={{ padding: "12px", background: "#f8fafc", borderRadius: "9px" }}><div style={{ fontSize: "11px", color: "#73818C" }}>{label}</div><div style={{ marginTop: "4px", fontSize: "18px", fontWeight: 800, color: "#29343C" }}>{label === "Ödenmiş sipariş" ? Number(value || 0) : `${Number(value || 0).toFixed(2)} €`}</div></div>)}
+                            </div>}
+                        </div>
+
+                            </>
+                            </div>
+                        )}
+
+                        {managerTab === "photos" && (
+                            <div role="tabpanel" id="manager-panel-photos" aria-labelledby="manager-tab-photos">
+                        <p style={{ margin: "0 0 14px", borderRadius: "10px", background: "#eff6ff", padding: "12px 14px", color: "#1e40af", fontSize: "13px" }}>{locale === "de" ? "Fotos werden direkt nach dem Upload gespeichert." : locale === "tr" ? "Fotoğraflar yüklendikten hemen sonra kaydedilir; ayrı bir kayıt düğmesi gerekmez." : "Photos are saved immediately after upload; no separate save button is needed."}</p>
                         {/* FOTOĞRAF YÜKLEME ALANI */}
                         <div style={{ background: "#f8f9fa", padding: "20px", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "30px", boxSizing: "border-box" }}>
                             <h3 style={{ margin: "0 0 10px 0", fontSize: "16px", color: "#111" }}>
@@ -728,7 +1237,19 @@ export default function RestaurantManager() {
                             )}
                         </div>
 
+                            </div>
+                        )}
+
+                        {managerTab === "menu" && (
+                            <div role="tabpanel" id="manager-panel-menu" aria-labelledby="manager-tab-menu">
+                        <MenuOptionManager restaurantId={selectedRestaurant.id} menuItems={menuItems} onSaved={() => { const key=`menu:${selectedRestaurant.id}`; sessionStorage.removeItem(`umecke-cache:${key}`); const ids=menuItems.map((item:any)=>item.id).join(","); if(ids) void fetch(`/api/menu-options?menu_item_ids=${encodeURIComponent(ids)}`,{cache:"no-store"}).then(r=>r.json()).then(payload=>{if(payload.success)setMenuItems((prev:any[])=>prev.map(item=>({...item,optionGroups:payload.optionsByMenuItem?.[String(item.id)]||[]})))}) }} />
+
+                            </div>
+                        )}
+
                         {/* Metin ve Ayar Formu */}
+                        {managerTab === "profile" && (
+                            <div role="tabpanel" id="manager-panel-profile" aria-labelledby="manager-tab-profile">
                         <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                             <div>
                                 <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>
@@ -917,6 +1438,8 @@ export default function RestaurantManager() {
                                 {saving ? "Kaydediliyor..." : "Değişiklikleri Supabase'e Kaydet"}
                             </button>
                         </form>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1044,11 +1567,12 @@ export default function RestaurantManager() {
                         width: "92%",
                         margin: "30px auto 0 auto",
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
                         gap: "20px",
                         boxSizing: "border-box",
                     }}
                 >
+                    {renderDetailCardBadge(badgeByRestaurant[selectedRestaurant.id])}
                     <div
                         style={{
                             background: "#fff",
@@ -1181,14 +1705,14 @@ export default function RestaurantManager() {
                             flexShrink: 0,
                         }}
                     >
-                        <img
+                        <img loading="lazy" decoding="async"
                             src={ownerImg}
                             alt="Owner"
                             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                         />
                     </div>
                     <div style={{ flex: 1, minWidth: "250px" }}>
-                        <h3 style={{ margin: "0 0 8px 0", color: "#111" }}>Hikayemiz</h3>
+                        <h3 style={{ margin: "0 0 8px 0", color: "#111" }}>{t("restaurant_story")}</h3>
                         <p style={{ color: "#555", lineHeight: "1.6", margin: 0, fontSize: "14px" }}>
                             {storyText}
                         </p>
@@ -1198,10 +1722,10 @@ export default function RestaurantManager() {
                 {/* MENÜ LİSTESİ VE TIKLAMA ÖZELLİĞİ */}
                 <div style={{ maxWidth: "1000px", width: "92%", margin: "40px auto 0 auto", boxSizing: "border-box" }}>
                     <h2 style={{ fontSize: "24px", marginBottom: "20px", color: "#111" }}>
-                        Menu
+                        {t("restaurant_menu")}
                     </h2>
                     {menuItems.length === 0 ? (
-                        <p style={{ color: "#666" }}>No menu items found for this restaurant.</p>
+                        <p style={{ color: "#666" }}>{t("restaurant_no_menu")}</p>
                     ) : (
                         <div
                             style={{
@@ -1211,7 +1735,7 @@ export default function RestaurantManager() {
                                 boxSizing: "border-box",
                             }}
                         >
-                            {menuItems.map((item) => {
+                            {menuItems.filter((item:any) => item.is_available !== false).map((item) => {
                                 const itemFallback = getPlaceholder(prodCat, item.name)
                                 const itemImage = item.image_url || itemFallback
                                 return (
@@ -1232,7 +1756,7 @@ export default function RestaurantManager() {
                                         }}
                                     >
                                         <div style={{ width: "100%", height: "160px", background: "#f0f0f0" }}>
-                                            <img
+                                            <img loading="lazy" decoding="async"
                                                 src={itemImage}
                                                 alt={item.name}
                                                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
@@ -1262,9 +1786,9 @@ export default function RestaurantManager() {
 
                 {/* MODAL ENTEGRASYONLARI */}
                 {selectedProduct && (
-                    <ProductModal 
-                        product={selectedProduct} 
-                        onClose={() => setSelectedProduct(null)} 
+                    <ProductModal
+                        product={selectedProduct}
+                        onClose={() => setSelectedProduct(null)}
                         onAddToCart={handleAddToCart}
                     />
                 )}
@@ -1283,9 +1807,9 @@ export default function RestaurantManager() {
                 )}
 
                 {/* CARTBAR ENTEGRASYONU */}
-                <CartBar 
-                    items={cartItems} 
-                    onOpenCart={() => setIsCartModalOpen(true)} 
+                <CartBar
+                    items={cartItems}
+                    onOpenCart={() => setIsCartModalOpen(true)}
                 />
             </div>
         )
@@ -1368,6 +1892,52 @@ export default function RestaurantManager() {
                         A local food movement built to bypass greedy commissions, support neighborhood restaurants, and bring you real flavor straight from the counter around the corner.
                     </p>
 
+                    {/* HYPER-LOCAL MAHALLE / POSTA KODU SEÇİCİ */}
+                    <div style={{ maxWidth: "600px", margin: "0 auto 30px auto", textAlign: "left", boxSizing: "border-box" }}>
+                        <div style={{ background: "#ffffff", borderRadius: "18px", border: "2px solid #e2e8f0", padding: "12px 18px", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.05)" }}>
+                            <span style={{ fontSize: "22px" }}>📍</span>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: "11px", fontWeight: "bold", color: "#73818C", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                    {t("restaurant_choose_neighborhood")}
+                                </div>
+                                <select
+                                    value={selectedZipcode}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSelectedZipcode(val);
+                                        if (val) localStorage.setItem("umEckeSelectedZipcode", val);
+                                        else localStorage.removeItem("umEckeSelectedZipcode");
+                                    }}
+                                    style={{ width: "100%", border: "none", outline: "none", fontSize: "15px", fontWeight: "800", color: "#29343C", background: "transparent", cursor: "pointer", marginTop: "2px" }}
+                                >
+                                    <option value="">🌐 {t("restaurant_all_regions")}</option>
+                                    {regions.map((reg) => (
+                                        <option key={`${reg.zipcode}-${reg.city}-${reg.district}`} value={reg.zipcode}>
+                                            📍 {reg.zipcode} {reg.city} ({reg.district})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {selectedZipcode && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedZipcode("");
+                                        localStorage.removeItem("umEckeSelectedZipcode");
+                                    }}
+                                    style={{ border: "none", background: "#f1f5f9", borderRadius: "8px", padding: "6px 10px", fontSize: "11px", fontWeight: "bold", color: "#73818C", cursor: "pointer" }}
+                                >
+                                    ✕ {t("restaurant_reset")}
+                                </button>
+                            )}
+                        </div>
+                        {selectedZipcode && (
+                            <p style={{ margin: "8px 0 0 8px", fontSize: "12px", color: "#059669", fontWeight: "700" }}>
+                                ✓ {t("restaurant_serving_region")} ({selectedZipcode})
+                            </p>
+                        )}
+                    </div>
+
                     <h3 style={{ fontSize: "22px", color: "#111", marginBottom: "20px" }}>
                         Discover Local Restaurants
                     </h3>
@@ -1382,7 +1952,11 @@ export default function RestaurantManager() {
                         boxSizing: "border-box",
                     }}
                 >
-                    {restaurants.map((res) => {
+                    {restaurants.filter((res: any) => {
+                        if (!selectedZipcode) return true;
+                        return res.zipcode === selectedZipcode ||
+                               (Array.isArray(res.service_zipcodes) && res.service_zipcodes.includes(selectedZipcode));
+                    }).map((res) => {
                         const cardProd = res.product_category || "Genel"
                         const fallbackCard = getPlaceholder(cardProd, res.name)
                         const cardImage =
@@ -1407,11 +1981,12 @@ export default function RestaurantManager() {
                                 }}
                             >
                                 <div style={{ width: "100%", height: "200px", background: "#f0f0f0", position: "relative" }}>
-                                    <img
+                                    <img loading="lazy" decoding="async"
                                         src={cardImage}
                                         alt={res.name}
                                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                                     />
+
                                     <div
                                         style={{
                                             position: "absolute",
@@ -1427,7 +2002,7 @@ export default function RestaurantManager() {
                                             flexShrink: 0,
                                         }}
                                     >
-                                        <img
+                                        <img loading="lazy" decoding="async"
                                             src={cardLogo}
                                             alt="Logo"
                                             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
@@ -1435,9 +2010,14 @@ export default function RestaurantManager() {
                                     </div>
                                 </div>
                                 <div style={{ padding: "20px", boxSizing: "border-box" }}>
-                                    <h3 style={{ fontSize: "20px", margin: "6px 0 8px 0", color: "#111" }}>
-                                        {res.name}
-                                    </h3>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                        <div style={{ flex: 1, paddingRight: "10px" }}>
+                                            <h3 style={{ fontSize: "20px", margin: "6px 0 8px 0", color: "#111" }}>
+                                                {res.name}
+                                            </h3>
+                                        </div>
+                                        {renderCardBadge(res.id)}
+                                    </div>
                                     <p
                                         style={{
                                             color: "#666",
@@ -1464,7 +2044,7 @@ export default function RestaurantManager() {
                                             📍 {res.address || "Rostock"}
                                         </span>
                                         <span style={{ fontWeight: "bold", color: "#111", fontSize: "14px" }}>
-                                            View Menu →
+                                            {t("restaurant_view_menu")} →
                                         </span>
                                     </div>
                                 </div>

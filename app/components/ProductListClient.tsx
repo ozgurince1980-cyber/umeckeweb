@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import ProductModal from './ProductModal';
 
-export default function ProductListClient({ products }: { products: any[] }) {
+export default function ProductListClient({ products, onAddToCart }: { products: any[]; onAddToCart: (cartItem: any) => void }) {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   return (
@@ -13,10 +13,7 @@ export default function ProductListClient({ products }: { products: any[] }) {
             <button
               type="button"
               key={product.id} 
-              onClick={() => {
-                alert("Tıklandı: " + product.name);
-                setSelectedProduct(product);
-              }}
+              onClick={() => setSelectedProduct(product)}
               className="w-full text-left bg-white p-4 rounded-xl shadow-sm flex items-center justify-between border cursor-pointer hover:border-green-500 hover:shadow-md transition-all"
             >
               <div className="flex-1 pr-4">
@@ -39,9 +36,10 @@ export default function ProductListClient({ products }: { products: any[] }) {
       </div>
 
       {selectedProduct && (
-        <ProductModal 
-          product={selectedProduct} 
-          onClose={() => setSelectedProduct(null)} 
+        <ProductModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAddToCart={onAddToCart}
         />
       )}
     </>

@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local Supabase CLI project metadata
+**/.temp/
+
+# Local TypeScript check output
+/tsc-errors.txt
