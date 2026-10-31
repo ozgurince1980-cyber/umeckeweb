@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase"
 import ProductModal from "./ProductModal"
 import CartBar from "./CartBar"
 import CartModal from "./CartModal"
+import SolidareatyLogo from "./SolidareatyLogo"
 import MenuOptionManager from "./MenuOptionManager"
 import { readShortCache, writeShortCache } from "../../lib/shortCache"
 import { useI18n } from "../../lib/i18n"
@@ -109,6 +110,67 @@ function getPlaceholder(productCategory: string, itemName: string = "") {
     return DEFAULT_IMAGES.default
 }
 
+
+
+function discoveryHoursStatus(restaurant: any, now = new Date()): { status: "open" | "later" | "closed" | "paused" | "unknown"; time?: string } {
+    if (restaurant?.is_closed === true) return { status: "paused" }
+    let hours: any = restaurant?.weekly_hours || restaurant?.opening_hours
+    if (typeof hours === "string") { try { hours = JSON.parse(hours) } catch { return { status: "unknown" } } }
+    if (!hours || typeof hours !== "object") return { status: "unknown" }
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now)
+    const getPart = (type: string) => parts.find((part) => part.type === type)?.value || "00"
+    const weekdays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+    const today = Math.max(0, ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(getPart("weekday")))
+    const current = Number(getPart("hour")) * 60 + Number(getPart("minute"))
+    const parse = (entry: any): [number, number] | null => {
+        if (!entry || entry.closed === true || entry.is_closed === true) return null
+        const raw = String(entry.open || entry.hours || entry.opening || "")
+        const matches = raw.match(/\d{1,2}:\d{2}/g)
+        if (!matches || matches.length < 2) return null
+        const minutes = (time: string) => { const [hour, minute] = time.split(":").map(Number); return hour * 60 + minute }
+        return [minutes(matches[0]), minutes(matches[1])]
+    }
+    const todayHours = parse(hours[weekdays[today]])
+    if (todayHours) {
+        const [open, close] = todayHours
+        if (close < open ? current >= open || current < close : current >= open && current < close) return { status: "open" }
+        if (current < open) return { status: "later", time: `${String(Math.floor(open / 60)).padStart(2, "0")}:${String(open % 60).padStart(2, "0")}` }
+    }
+    const previous = parse(hours[weekdays[(today + 6) % 7]])
+    if (previous && previous[1] < previous[0] && current < previous[1]) return { status: "open" }
+    for (let offset = 1; offset <= 7; offset++) {
+        const upcoming = parse(hours[weekdays[(today + offset) % 7]])
+        if (upcoming) return { status: "later", time: `${String(Math.floor(upcoming[0] / 60)).padStart(2, "0")}:${String(upcoming[0] % 60).padStart(2, "0")}` }
+    }
+    return { status: "closed" }
+}
+
+function discoveryServices(restaurant: any): { delivery: boolean; pickup: boolean; dineIn: boolean; freeDelivery: boolean } {
+    let raw = restaurant?.service_options
+    if (typeof raw === "string") { try { const parsed = JSON.parse(raw); raw = Array.isArray(parsed) ? parsed : raw.split(/[;,|]/) } catch { raw = raw.split(/[;,|]/) } }
+    const options = Array.isArray(raw) ? raw.map((value: any) => String(value).toLocaleLowerCase()) : []
+    return {
+        delivery: options.some((value: string) => /paket|liefer|delivery|kurier/.test(value)),
+        pickup: options.some((value: string) => /gel.?al|abhol|pickup|take.?away|self.?collect/.test(value)),
+        dineIn: options.some((value: string) => /mekan|dine.?in|vor.?ort/.test(value)),
+        freeDelivery: options.some((value: string) => /kostenlos.*liefer|free.*deliver|liefer.*kostenlos/.test(value)),
+    }
+}
+
+function DiscoveryIcon({ name, size = 18 }: { name: string; size?: number }) {
+    const p = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const }
+    const icons: Record<string, React.ReactNode> = {
+        pin: <><path {...p} d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle {...p} cx="12" cy="10" r="2"/></>,
+        search: <><circle {...p} cx="10.5" cy="10.5" r="6.5"/><path {...p} d="m15.5 15.5 4 4"/></>,
+        heart: <path {...p} d="M20.5 8.8c0 4.2-8.5 10-8.5 10s-8.5-5.8-8.5-10A4.5 4.5 0 0 1 12 6.4a4.5 4.5 0 0 1 8.5 2.4Z"/>,
+        clock: <><circle {...p} cx="12" cy="12" r="8.5"/><path {...p} d="M12 7v5l3 2"/></>,
+        bag: <><path {...p} d="M5 8h14l1 12H4L5 8Z"/><path {...p} d="M9 9V6a3 3 0 0 1 6 0v3"/></>,
+        arrow: <><path {...p} d="M5 12h14m-6-6 6 6-6 6"/></>,
+        star: <path {...p} d="m12 3 2.6 5.4 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9L12 3Z"/>,
+    }
+    return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ display: "block", flexShrink: 0 }}>{icons[name] || icons.search}</svg>
+}
+
 type RestaurantManagerProps = { initialRestaurantSlug?: string }
 
 export default function RestaurantManager({ initialRestaurantSlug }: RestaurantManagerProps) {
@@ -118,6 +180,13 @@ export default function RestaurantManager({ initialRestaurantSlug }: RestaurantM
     const [badgeByRestaurant, setBadgeByRestaurant] = useState<Record<string, any>>({})
     const [regions, setRegions] = useState<any[]>([])
     const [selectedZipcode, setSelectedZipcode] = useState<string>("")
+
+    const [discoveryQuery, setDiscoveryQuery] = useState("")
+    const [discoveryCategory, setDiscoveryCategory] = useState("")
+    const [discoveryMode, setDiscoveryMode] = useState<"all" | "delivery" | "pickup">("all")
+    const [favoritesOnly, setFavoritesOnly] = useState(false)
+    const [favoriteIds, setFavoriteIds] = useState<string[]>([])
+    const [favoritesHydrated, setFavoritesHydrated] = useState(false)
     const [menuItems, setMenuItems] = useState<any[]>([])
     const [loading, setLoading] = useState<boolean>(true)
 
@@ -149,13 +218,23 @@ export default function RestaurantManager({ initialRestaurantSlug }: RestaurantM
     const [managerTab, setManagerTab] = useState<"overview" | "photos" | "menu" | "profile" | "payments">("overview")
 
     useEffect(() => {
+        try { setFavoriteIds(JSON.parse(localStorage.getItem("solidareaty-favorite-restaurants") || "[]")) }
+        catch { setFavoriteIds([]) }
+        setFavoritesHydrated(true)
+    }, [])
+
+    useEffect(() => {
+        if (favoritesHydrated) localStorage.setItem("solidareaty-favorite-restaurants", JSON.stringify(favoriteIds))
+    }, [favoriteIds, favoritesHydrated])
+
+    useEffect(() => {
         let cancelled = false
         async function fetchRestaurants() {
             setLoading(true)
             const cached = readShortCache<any>("restaurant-discovery-v1", 30_000)
             if (cached && !cancelled) {
                 setRestaurants(cached.restaurants || []); setBadgeByRestaurant(cached.badges || {}); setRegions(cached.regions || [])
-                const savedZip=localStorage.getItem("umEckeSelectedZipcode")||""; if(savedZip)setSelectedZipcode(savedZip)
+                const savedZip=localStorage.getItem("solidareatySelectedZipcode")||""; if(savedZip)setSelectedZipcode(savedZip)
                 if(initialRestaurantSlug){const match=(cached.restaurants||[]).find((item:any)=>item.slug===initialRestaurantSlug);if(match)setSelectedRestaurant(match)}
                 setLoading(false); return
             }
@@ -169,7 +248,7 @@ export default function RestaurantManager({ initialRestaurantSlug }: RestaurantM
                 const badgeMap:Record<string,any>={};for(const row of badgeResult.data||[])badgeMap[row.restaurant_id]=row
                 const nextRegions=regionResult.data||[];setRestaurants(uniqueRestaurants);setBadgeByRestaurant(badgeMap);setRegions(nextRegions)
                 writeShortCache("restaurant-discovery-v1",{restaurants:uniqueRestaurants,badges:badgeMap,regions:nextRegions})
-                const savedZip=localStorage.getItem("umEckeSelectedZipcode")||"";if(savedZip)setSelectedZipcode(savedZip)
+                const savedZip=localStorage.getItem("solidareatySelectedZipcode")||"";if(savedZip)setSelectedZipcode(savedZip)
                 if(initialRestaurantSlug){const match=uniqueRestaurants.find((item:any)=>item.slug===initialRestaurantSlug);if(match)setSelectedRestaurant(match)}
             }
             if(!cancelled)setLoading(false)
@@ -384,6 +463,7 @@ export default function RestaurantManager({ initialRestaurantSlug }: RestaurantM
         const resId = restaurantId.replace(/[^a-zA-Z0-9]/g, "");
         return (
             <div
+                className="solidareaty-award-badge"
                 style={{
                     flexShrink: 0,
                     width: "60px",
@@ -1242,7 +1322,7 @@ export default function RestaurantManager({ initialRestaurantSlug }: RestaurantM
 
                         {managerTab === "menu" && (
                             <div role="tabpanel" id="manager-panel-menu" aria-labelledby="manager-tab-menu">
-                        <MenuOptionManager restaurantId={selectedRestaurant.id} menuItems={menuItems} onSaved={() => { const key=`menu:${selectedRestaurant.id}`; sessionStorage.removeItem(`umecke-cache:${key}`); const ids=menuItems.map((item:any)=>item.id).join(","); if(ids) void fetch(`/api/menu-options?menu_item_ids=${encodeURIComponent(ids)}`,{cache:"no-store"}).then(r=>r.json()).then(payload=>{if(payload.success)setMenuItems((prev:any[])=>prev.map(item=>({...item,optionGroups:payload.optionsByMenuItem?.[String(item.id)]||[]})))}) }} />
+                        <MenuOptionManager restaurantId={selectedRestaurant.id} menuItems={menuItems} onSaved={() => { const key=`menu:${selectedRestaurant.id}`; sessionStorage.removeItem(`solidareaty-cache:${key}`); const ids=menuItems.map((item:any)=>item.id).join(","); if(ids) void fetch(`/api/menu-options?menu_item_ids=${encodeURIComponent(ids)}`,{cache:"no-store"}).then(r=>r.json()).then(payload=>{if(payload.success)setMenuItems((prev:any[])=>prev.map(item=>({...item,optionGroups:payload.optionsByMenuItem?.[String(item.id)]||[]})))}) }} />
 
                             </div>
                         )}
@@ -1815,244 +1895,76 @@ export default function RestaurantManager({ initialRestaurantSlug }: RestaurantM
         )
     }
 
-    return (
-        <div
-            style={{
-                width: "100%",
-                minHeight: "100vh",
-                fontFamily: "sans-serif",
-                boxSizing: "border-box",
-                padding: "40px 20px",
-                background: "#f8f9fa",
-                overflowX: "hidden",
-            }}
-        >
-            <div style={{ maxWidth: "1100px", width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-                <div style={{ textAlign: "center", marginBottom: "50px" }}>
-                    <div style={{ display: "inline-block", marginBottom: "20px" }}>
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 720 220"
-                            style={{ width: "280px", height: "auto", display: "block", margin: "0 auto" }}
-                        >
-                            <defs>
-                                <linearGradient id="cornerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#ff3b00" />
-                                    <stop offset="100%" stopColor="#ff9900" />
-                                </linearGradient>
-                            </defs>
-                            <path
-                                d="M 60 170 L 60 90 C 60 73.431 73.431 60 90 60 L 175 60"
-                                fill="none"
-                                stroke="url(#cornerGrad)"
-                                strokeWidth="18"
-                                strokeLinecap="round"
-                            />
-                            <path
-                                d="M 60 170 L 60 120"
-                                fill="none"
-                                stroke="#222222"
-                                strokeWidth="18"
-                                strokeLinecap="round"
-                            />
-                            <text
-                                x="220"
-                                y="130"
-                                fontFamily="sans-serif"
-                                fontWeight="900"
-                                fontSize="76"
-                                fill="#222222"
-                                letterSpacing="2"
-                            >
-                                UM<tspan fill="#ff9900">ECKE</tspan>
-                            </text>
-                            <text
-                                x="222"
-                                y="172"
-                                fontFamily="sans-serif"
-                                fontWeight="500"
-                                fontSize="20"
-                                fill="#666666"
-                                letterSpacing="0.5"
-                            >
-                                Local flavor, right around the corner.
-                            </text>
-                        </svg>
-                    </div>
+    const language = String(locale || "en").toLowerCase().slice(0, 2)
+    const copyByLanguage: Record<string, Record<string, string>> = {
+      en: { title:"Discover local restaurants", search:"Search restaurants, dishes or cuisines", region:"All neighbourhoods", categories:"All cuisines", all:"All", delivery:"Delivery", pickup:"Take away", favorites:"Favourites", clear:"Clear filters", orderNow:"Order from local places", preOrder:"Opens later · delivery available", unavailable:"Unavailable for delivery", pickupOnly:"Take away only", notTaking:"Not taking orders", checkHours:"Check opening hours", open:"Open now", later:"Opens later", paused:"Not taking orders", closed:"Closed today", free:"Free delivery", rating:"Community score", menu:"View menu", noResults:"No restaurants match these filters", tryAgain:"Try another search or clear filters", loading:"Finding local restaurants…", count:"restaurants" },
+      de: { title:"Restaurants aus deiner Nähe", search:"Restaurants, Gerichte oder Küchen suchen", region:"Alle Nachbarschaften", categories:"Alle Küchen", all:"Alle", delivery:"Lieferung", pickup:"Abholung", favorites:"Merkliste", clear:"Filter zurücksetzen", orderNow:"Jetzt lokal bestellen", preOrder:"Öffnet später · Lieferung verfügbar", unavailable:"Keine Lieferung verfügbar", pickupOnly:"Nur zum Mitnehmen", notTaking:"Nimmt keine Bestellungen an", checkHours:"Öffnungszeiten prüfen", open:"Jetzt geöffnet", later:"Öffnet später", paused:"Nimmt keine Bestellungen an", closed:"Heute geschlossen", free:"Kostenlose Lieferung", rating:"Community-Bewertung", menu:"Speisekarte ansehen", noResults:"Keine passenden Restaurants gefunden", tryAgain:"Suche ändern oder Filter zurücksetzen", loading:"Restaurants in deiner Nähe…", count:"Restaurants" },
+      tr: { title:"Yakınındaki restoranları keşfet", search:"Restoran, yemek veya mutfak ara", region:"Tüm mahalleler", categories:"Tüm mutfaklar", all:"Tümü", delivery:"Teslimat", pickup:"Gel-al", favorites:"Favoriler", clear:"Filtreleri temizle", orderNow:"Yerel restoranlardan sipariş ver", preOrder:"Daha sonra açılır · teslimat mevcut", unavailable:"Teslimat yapılamıyor", pickupOnly:"Yalnızca gel-al", notTaking:"Sipariş almıyor", checkHours:"Çalışma saatlerini kontrol et", open:"Şimdi açık", later:"Daha sonra açılıyor", paused:"Sipariş almıyor", closed:"Bugün kapalı", free:"Ücretsiz teslimat", rating:"Topluluk puanı", menu:"Menüyü gör", noResults:"Bu filtrelerle restoran bulunamadı", tryAgain:"Başka bir arama dene veya filtreleri temizle", loading:"Yakınındaki restoranlar bulunuyor…", count:"restoran" }
+    }
+    const copy = copyByLanguage[language] || copyByLanguage.en
+    const categories = Array.from(new Set(restaurants.map((res: any) => String(res.product_category || res.cuisine_type || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+    const allFilteredRestaurants = restaurants.filter((res: any) => {
+        const inRegion = !selectedZipcode || res.zipcode === selectedZipcode || (Array.isArray(res.service_zipcodes) && res.service_zipcodes.includes(selectedZipcode))
+        const query = discoveryQuery.trim().toLocaleLowerCase()
+        const matchesQuery = !query || [res.name, res.description, res.story, res.product_category, res.cuisine_type, res.address].some((value) => String(value || "").toLocaleLowerCase().includes(query))
+        const matchesCategory = !discoveryCategory || String(res.product_category || res.cuisine_type || "").trim() === discoveryCategory
+        const services = discoveryServices(res)
+        const matchesMode = discoveryMode === "all" || (discoveryMode === "delivery" ? services.delivery : services.pickup)
+        const matchesFavorite = !favoritesOnly || favoriteIds.includes(String(res.id))
+        return inRegion && matchesQuery && matchesCategory && matchesMode && matchesFavorite
+    })
+    const statusOf = (res: any) => discoveryHoursStatus(res)
+    const serviceOf = (res: any) => discoveryServices(res)
+    const orderNow = allFilteredRestaurants.filter((res: any) => statusOf(res).status === "open" && (serviceOf(res).delivery || serviceOf(res).pickup) && !(serviceOf(res).pickup && !serviceOf(res).delivery && !serviceOf(res).dineIn))
+    const preOrder = allFilteredRestaurants.filter((res: any) => statusOf(res).status === "later" && serviceOf(res).delivery)
+    const unavailableForDelivery = allFilteredRestaurants.filter((res: any) => statusOf(res).status === "open" && !serviceOf(res).delivery && (serviceOf(res).pickup || serviceOf(res).dineIn) && !(serviceOf(res).pickup && !serviceOf(res).dineIn))
+    const pickupOnly = allFilteredRestaurants.filter((res: any) => serviceOf(res).pickup && !serviceOf(res).delivery && !serviceOf(res).dineIn && (statusOf(res).status === "open" || statusOf(res).status === "later"))
+    const notTaking = allFilteredRestaurants.filter((res: any) => statusOf(res).status === "paused" || statusOf(res).status === "closed")
+    const needsHoursCheck = allFilteredRestaurants.filter((res: any) => statusOf(res).status === "unknown" || (statusOf(res).status === "open" && !serviceOf(res).delivery && !serviceOf(res).pickup && !serviceOf(res).dineIn))
+    const sections = [
+      { key:"order-now", title:copy.orderNow, items:orderNow },
+      { key:"pre-order", title:copy.preOrder, items:preOrder },
+      { key:"delivery-unavailable", title:copy.unavailable, items:unavailableForDelivery },
+      { key:"pickup-only", title:copy.pickupOnly, items:pickupOnly },
+      { key:"not-taking", title:copy.notTaking, items:notTaking },
+      { key:"check-hours", title:copy.checkHours, items:needsHoursCheck },
+    ].filter((section) => section.items.length > 0)
+    const hasActiveFilters = Boolean(discoveryQuery || discoveryCategory || discoveryMode !== "all" || favoritesOnly || selectedZipcode)
+    const clearFilters = () => { setDiscoveryQuery(""); setDiscoveryCategory(""); setDiscoveryMode("all"); setFavoritesOnly(false); setSelectedZipcode(""); localStorage.removeItem("solidareatySelectedZipcode") }
+    const toggleFavorite = (event: React.MouseEvent, id: string) => { event.stopPropagation(); setFavoriteIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]) }
+    const timeLabel = (res: any) => {
+        const status = statusOf(res)
+        if (status.status === "open") return copy.open
+        if (status.status === "paused") return copy.paused
+        if (status.status === "closed") return copy.closed
+        if (status.status === "later") return `${copy.later}${status.time ? ` · ${status.time}` : ""}`
+        return ""
+    }
+    const renderRestaurantCard = (res: any) => {
+        const services = serviceOf(res)
+        const status = statusOf(res)
+        const favorite = favoriteIds.includes(String(res.id))
+        const category = res.product_category || res.cuisine_type || ""
+        const image = res.cover_image_url || res.image_url || getPlaceholder(category, res.name)
+        const logo = res.logo_url || getPlaceholder(category, res.name)
+        return <article key={res.id} className="sa-discovery-card" role="group" tabIndex={0} aria-label={`${res.name} restaurant card`} onClick={() => setSelectedRestaurant(res)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedRestaurant(res) } }} style={{ background:"#fff", border:"1px solid #e6eae3", borderRadius:"20px", overflow:"hidden", boxShadow:"0 8px 24px rgba(32,54,44,.055)", cursor:"pointer", minWidth:0 }}>
+          <div style={{ height:"184px", position:"relative", background:"#e9ede7" }}><img loading="lazy" decoding="async" src={image} alt={res.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/><div style={{ position:"absolute", inset:"50% 0 0", background:"linear-gradient(transparent,rgba(25,39,31,.18))" }}/>{category && <span style={{ position:"absolute", left:"13px", top:"13px", borderRadius:"99px", background:"#ffffffed", padding:"6px 9px", color:"#52665a", fontSize:"10px", fontWeight:800 }}>{category}</span>}<button type="button" aria-label={favorite ? "Remove from favourites" : "Add to favourites"} aria-pressed={favorite} onClick={(event) => toggleFavorite(event, String(res.id))} style={{ position:"absolute", top:"11px", right:"11px", display:"grid", placeItems:"center", width:"40px", height:"40px", border:"1px solid #ffffffc9", borderRadius:"50%", background:"#ffffffed", color:favorite?"#ad7652":"#667367", cursor:"pointer", boxShadow:"0 3px 12px #0002" }}><DiscoveryIcon name="heart" size={19}/></button><img loading="lazy" decoding="async" src={logo} alt="" style={{ position:"absolute", left:"15px", bottom:"-19px", width:"54px", height:"54px", borderRadius:"16px", border:"3px solid #fff", objectFit:"cover", background:"white", boxShadow:"0 4px 12px #0002" }}/></div>
+          <div style={{ padding:"29px 16px 15px" }}><div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"8px" }}><h3 style={{ margin:"0 0 7px", fontSize:"17px", lineHeight:1.25, color:"#263f32" }}>{res.name}</h3>{renderCardBadge(res.id)}</div><p style={{ margin:"0 0 12px", minHeight:"18px", color:"#78847a", fontSize:"12px", lineHeight:1.5, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{res.story || res.description || ""}</p>
+            <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:"7px", marginBottom:"10px" }}>{Number(res.rating) > 0 && <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", borderRadius:"9px", padding:"6px 8px", background:"#f5f0e5", color:"#806e4d", fontSize:"10px", fontWeight:800 }}><DiscoveryIcon name="star" size={13}/>{Number(res.rating).toFixed(1)} <span style={{ fontWeight:600, color:"#978b74" }}>{copy.rating}</span></span>}{status.status !== "unknown" && <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", borderRadius:"9px", padding:"6px 8px", background:status.status === "open" ? "#eef3ec" : "#f4f0e9", color:status.status === "open" ? "#566c55" : "#806c4d", fontSize:"10px", fontWeight:750 }}><DiscoveryIcon name="clock" size={13}/>{timeLabel(res)}</span>}</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:"6px", marginBottom:"12px" }}>{services.delivery && <span className="sa-service-pill"><DiscoveryIcon name="arrow" size={12}/>{copy.delivery}</span>}{services.pickup && <span className="sa-service-pill"><DiscoveryIcon name="bag" size={12}/>{copy.pickup}</span>}{services.freeDelivery && <span className="sa-service-pill sa-free-pill">{copy.free}</span>}{!services.delivery && services.pickup && <span className="sa-service-pill">{copy.unavailable}</span>}</div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", borderTop:"1px solid #edf0eb", paddingTop:"10px" }}><span style={{ minWidth:0, display:"inline-flex", alignItems:"center", gap:"5px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#89938b", fontSize:"10px" }}><DiscoveryIcon name="pin" size={13}/>{res.address || ""}</span><span style={{ display:"inline-flex", alignItems:"center", gap:"5px", color:"#60735f", fontSize:"11px", fontWeight:800, whiteSpace:"nowrap" }}>{t("restaurant_view_menu")}<DiscoveryIcon name="arrow" size={13}/></span></div>
+          </div>
+        </article>
+    }
 
-                    <p
-                        style={{
-                            color: "#555",
-                            fontSize: "18px",
-                            maxWidth: "750px",
-                            margin: "0 auto 40px auto",
-                            lineHeight: "1.6",
-                        }}
-                    >
-                        A local food movement built to bypass greedy commissions, support neighborhood restaurants, and bring you real flavor straight from the counter around the corner.
-                    </p>
+    return <main className="sa-discovery" style={{ width:"100%", minHeight:"100vh", boxSizing:"border-box", padding:"32px 20px 52px", background:"#f7f8f3", color:"#263f32", overflowX:"hidden" }}>
+      <style>{`@keyframes sa-discovery-hover{to{transform:translateY(-4px);box-shadow:0 18px 38px rgba(32,54,44,.13)}}@keyframes sa-award-glow{0%,100%{filter:drop-shadow(0 3px 6px rgba(120,91,39,.22))}50%{filter:drop-shadow(0 5px 13px rgba(174,132,55,.42))}}.sa-discovery-card{transition:transform .2s ease,box-shadow .2s ease}.sa-discovery-card:hover{transform:translateY(-4px);box-shadow:0 18px 38px rgba(32,54,44,.13)!important}.solidareaty-award-badge{animation:sa-award-glow 3.5s ease-in-out infinite}.sa-service-pill{display:inline-flex;align-items:center;gap:4px;border-radius:8px;background:#f0f3ed;color:#627064;padding:5px 7px;font-size:9px;font-weight:750}.sa-free-pill{background:#f3eee3;color:#826d49}.sa-discovery-button{min-height:39px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 13px;border:1px solid #e2e7df;border-radius:999px;background:#fff;color:#596a5d;font-size:11px;font-weight:800;white-space:nowrap;cursor:pointer}.sa-discovery-button[aria-pressed=true]{background:#263f32;color:#fff;border-color:#263f32}@media(max-width:640px){.sa-discovery{padding:22px 14px 40px!important}.sa-discovery-toolbar{grid-template-columns:1fr!important}.sa-discovery-grid{grid-template-columns:1fr!important}}@media(prefers-reduced-motion:reduce){.sa-discovery-card,.solidareaty-award-badge{animation:none!important;transition:none!important}}`}</style>
+      <div style={{ maxWidth:"1180px", margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:"25px" }}><SolidareatyLogo className="mx-auto mb-4 block h-auto w-[210px] max-w-[75vw]"/><h2 style={{ margin:"0 0 7px", fontSize:"clamp(23px,4vw,32px)", letterSpacing:"-.8px", color:"#263f32" }}>{copy.title}</h2><p style={{ margin:0, color:"#79847a", fontSize:"12px" }}>{copy.intro || "Independent places, connected to your neighbourhood."}</p></div>
+        <div className="sa-discovery-toolbar" style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(210px,.48fr)", gap:"10px", marginBottom:"11px" }}><label style={{ display:"flex", alignItems:"center", gap:"9px", minHeight:"48px", padding:"0 13px", border:"1px solid #e5e9e2", borderRadius:"14px", background:"white" }}><DiscoveryIcon name="search" size={19}/><input aria-label={copy.search} type="search" placeholder={copy.search} value={discoveryQuery} onChange={(event)=>setDiscoveryQuery(event.target.value)} style={{ width:"100%", minWidth:0, border:0, outline:0, background:"transparent", color:"#263f32", fontSize:"12px" }}/></label><label style={{ display:"flex", alignItems:"center", gap:"8px", minHeight:"48px", padding:"0 11px", border:"1px solid #e5e9e2", borderRadius:"14px", background:"white" }}><DiscoveryIcon name="pin" size={17}/><select aria-label={copy.region} value={selectedZipcode} onChange={(event)=>{const value=event.target.value;setSelectedZipcode(value);if(value)localStorage.setItem("solidareatySelectedZipcode",value);else localStorage.removeItem("solidareatySelectedZipcode")}} style={{ width:"100%", border:0, outline:0, background:"transparent", color:"#43584a", fontSize:"12px", fontWeight:750 }}><option value="">{copy.region}</option>{regions.map((reg)=><option key={`${reg.zipcode}-${reg.city}-${reg.district}`} value={reg.zipcode}>{reg.zipcode} {reg.city} ({reg.district})</option>)}</select></label></div>
+        <div style={{ display:"flex", alignItems:"center", gap:"7px", overflowX:"auto", padding:"2px 0 12px" }}><button type="button" className="sa-discovery-button" aria-pressed={discoveryMode==="all"} onClick={()=>setDiscoveryMode("all")}>{copy.all}</button><button type="button" className="sa-discovery-button" aria-pressed={!discoveryCategory} onClick={()=>setDiscoveryCategory("")}>{copy.categories}</button><button type="button" className="sa-discovery-button" aria-pressed={discoveryMode==="delivery"} onClick={()=>setDiscoveryMode("delivery")}><DiscoveryIcon name="arrow" size={14}/>{copy.delivery}</button><button type="button" className="sa-discovery-button" aria-pressed={discoveryMode==="pickup"} onClick={()=>setDiscoveryMode("pickup")}><DiscoveryIcon name="bag" size={14}/>{copy.pickup}</button><button type="button" className="sa-discovery-button" aria-pressed={favoritesOnly} onClick={()=>setFavoritesOnly(!favoritesOnly)}><DiscoveryIcon name="heart" size={14}/>{copy.favorites}{favoriteIds.length?` · ${favoriteIds.length}`:""}</button>{categories.map((category)=><button key={category} type="button" className="sa-discovery-button" aria-pressed={discoveryCategory===category} onClick={()=>setDiscoveryCategory(discoveryCategory===category?"":category)}>{category}</button>)}{hasActiveFilters&&<button type="button" className="sa-discovery-button" onClick={clearFilters}>{copy.clear}</button>}</div>
+        {loading ? <div role="status" style={{ padding:"52px 20px", textAlign:"center", color:"#778278", fontSize:"13px" }}>{copy.loading}</div> : allFilteredRestaurants.length===0 ? <div style={{ padding:"44px 20px", textAlign:"center", border:"1px dashed #d7ded5", borderRadius:"18px", background:"#ffffffb5", color:"#69776d" }}><DiscoveryIcon name="search" size={29}/><h3 style={{ margin:"12px 0 6px", color:"#344d3e", fontSize:"17px" }}>{copy.noResults}</h3><p style={{ margin:"0 0 14px", fontSize:"12px" }}>{copy.tryAgain}</p>{hasActiveFilters&&<button type="button" className="sa-discovery-button" onClick={clearFilters}>{copy.clear}</button>}</div> : <><div aria-live="polite" style={{ margin:"0 0 13px", color:"#7b867d", fontSize:"11px", fontWeight:700 }}>{allFilteredRestaurants.length} {copy.count}</div>{sections.map((section)=><section key={section.key} style={{ marginBottom:"24px" }}><h3 style={{ display:"flex", alignItems:"center", gap:"8px", margin:"0 0 11px", color:"#344d3e", fontSize:"17px", letterSpacing:"-.3px" }}>{section.title}<span style={{ borderRadius:"99px", padding:"3px 8px", background:"#ecefe8", color:"#68766b", fontSize:"10px" }}>{section.items.length}</span></h3><div className="sa-discovery-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,270px),1fr))", gap:"15px" }}>{section.items.map(renderRestaurantCard)}</div></section>)}</>}
+      </div>
+    </main>
 
-                    {/* HYPER-LOCAL MAHALLE / POSTA KODU SEÇİCİ */}
-                    <div style={{ maxWidth: "600px", margin: "0 auto 30px auto", textAlign: "left", boxSizing: "border-box" }}>
-                        <div style={{ background: "#ffffff", borderRadius: "18px", border: "2px solid #e2e8f0", padding: "12px 18px", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.05)" }}>
-                            <span style={{ fontSize: "22px" }}>📍</span>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: "11px", fontWeight: "bold", color: "#73818C", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                                    {t("restaurant_choose_neighborhood")}
-                                </div>
-                                <select
-                                    value={selectedZipcode}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setSelectedZipcode(val);
-                                        if (val) localStorage.setItem("umEckeSelectedZipcode", val);
-                                        else localStorage.removeItem("umEckeSelectedZipcode");
-                                    }}
-                                    style={{ width: "100%", border: "none", outline: "none", fontSize: "15px", fontWeight: "800", color: "#29343C", background: "transparent", cursor: "pointer", marginTop: "2px" }}
-                                >
-                                    <option value="">🌐 {t("restaurant_all_regions")}</option>
-                                    {regions.map((reg) => (
-                                        <option key={`${reg.zipcode}-${reg.city}-${reg.district}`} value={reg.zipcode}>
-                                            📍 {reg.zipcode} {reg.city} ({reg.district})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            {selectedZipcode && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedZipcode("");
-                                        localStorage.removeItem("umEckeSelectedZipcode");
-                                    }}
-                                    style={{ border: "none", background: "#f1f5f9", borderRadius: "8px", padding: "6px 10px", fontSize: "11px", fontWeight: "bold", color: "#73818C", cursor: "pointer" }}
-                                >
-                                    ✕ {t("restaurant_reset")}
-                                </button>
-                            )}
-                        </div>
-                        {selectedZipcode && (
-                            <p style={{ margin: "8px 0 0 8px", fontSize: "12px", color: "#059669", fontWeight: "700" }}>
-                                ✓ {t("restaurant_serving_region")} ({selectedZipcode})
-                            </p>
-                        )}
-                    </div>
-
-                    <h3 style={{ fontSize: "22px", color: "#111", marginBottom: "20px" }}>
-                        Discover Local Restaurants
-                    </h3>
-                </div>
-
-                {/* RESTORAN KARTLARI LİSTESİ */}
-                <div
-                    style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-                        gap: "25px",
-                        boxSizing: "border-box",
-                    }}
-                >
-                    {restaurants.filter((res: any) => {
-                        if (!selectedZipcode) return true;
-                        return res.zipcode === selectedZipcode ||
-                               (Array.isArray(res.service_zipcodes) && res.service_zipcodes.includes(selectedZipcode));
-                    }).map((res) => {
-                        const cardProd = res.product_category || "Genel"
-                        const fallbackCard = getPlaceholder(cardProd, res.name)
-                        const cardImage =
-                            res.cover_image_url || res.image_url || fallbackCard
-                        const cardLogo =
-                            res.logo_url ||
-                            "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80"
-                        return (
-                            <div
-                                key={res.id}
-                                onClick={() => setSelectedRestaurant(res)}
-                                style={{
-                                    background: "#fff",
-                                    borderRadius: "16px",
-                                    overflow: "hidden",
-                                    boxShadow: "0 6px 20px rgba(0,0,0,0.06)",
-                                    cursor: "pointer",
-                                    transition: "transform 0.2s ease",
-                                    border: "1px solid #eaeaea",
-                                    position: "relative",
-                                    boxSizing: "border-box",
-                                }}
-                            >
-                                <div style={{ width: "100%", height: "200px", background: "#f0f0f0", position: "relative" }}>
-                                    <img loading="lazy" decoding="async"
-                                        src={cardImage}
-                                        alt={res.name}
-                                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                                    />
-
-                                    <div
-                                        style={{
-                                            position: "absolute",
-                                            bottom: "12px",
-                                            left: "15px",
-                                            width: "55px",
-                                            height: "55px",
-                                            borderRadius: "50%",
-                                            overflow: "hidden",
-                                            border: "2px solid #fff",
-                                            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                                            background: "#fff",
-                                            flexShrink: 0,
-                                        }}
-                                    >
-                                        <img loading="lazy" decoding="async"
-                                            src={cardLogo}
-                                            alt="Logo"
-                                            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                                        />
-                                    </div>
-                                </div>
-                                <div style={{ padding: "20px", boxSizing: "border-box" }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                                        <div style={{ flex: 1, paddingRight: "10px" }}>
-                                            <h3 style={{ fontSize: "20px", margin: "6px 0 8px 0", color: "#111" }}>
-                                                {res.name}
-                                            </h3>
-                                        </div>
-                                        {renderCardBadge(res.id)}
-                                    </div>
-                                    <p
-                                        style={{
-                                            color: "#666",
-                                            fontSize: "14px",
-                                            margin: "0 0 15px 0",
-                                            display: "-webkit-box",
-                                            WebkitLineClamp: 2,
-                                            WebkitBoxOrient: "vertical",
-                                            overflow: "hidden",
-                                        }}
-                                    >
-                                        {res.story || res.description || "Delicious foods and fresh menus..."}
-                                    </p>
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                            paddingTop: "12px",
-                                            borderTop: "1px solid #f0f0f0",
-                                        }}
-                                    >
-                                        <span style={{ fontSize: "13px", color: "#888" }}>
-                                            📍 {res.address || "Rostock"}
-                                        </span>
-                                        <span style={{ fontWeight: "bold", color: "#111", fontSize: "14px" }}>
-                                            {t("restaurant_view_menu")} →
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-        </div>
-    )
 }
