@@ -26,6 +26,13 @@ function NetworkMark({ size = 168, dotRefs }: { size?: number; dotRefs: MutableR
     <circle cx="100" cy="100" r="71" fill="none" stroke="#d9c9a8" strokeWidth="2" strokeDasharray="3 7" />
     <g stroke="#d7c5a4" strokeWidth="2.5" strokeLinecap="round"><path d="M100 100 48 57"/><path d="M100 100 151 55"/><path d="M100 100 37 129"/><path d="M100 100 162 130"/><path d="M100 100 100 174"/></g>
     <g fill="#e6a05f"><circle cx="72" cy="77" r="5"/><circle cx="127" cy="76" r="5"/><circle cx="67" cy="116" r="5"/><circle cx="134" cy="117" r="5"/><circle cx="100" cy="137" r="5"/></g>
+    <g fill="#fff8ec" stroke="#d66d4b" strokeWidth="2">
+      <circle r="3.2"><animateMotion path="M100 100 L48 57" dur="2.5s" begin="0s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion path="M100 100 L151 55" dur="2.8s" begin=".35s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion path="M100 100 L37 129" dur="2.65s" begin=".7s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion path="M100 100 L162 130" dur="2.9s" begin="1.05s" repeatCount="indefinite"/></circle>
+      <circle r="3.2"><animateMotion path="M100 100 L100 174" dur="2.55s" begin="1.4s" repeatCount="indefinite"/></circle>
+    </g>
     <circle cx="100" cy="100" r="19" fill="#263f32"/><circle cx="100" cy="100" r="7" fill="#e9a66a"/>
     <circle ref={(node)=>{dotRefs.current[0]=node}} className="sa-brand-node" style={{animationDelay:"0s"}} cx="48" cy="57" r="10" fill="#d66d4b" stroke="#fff9ef" strokeWidth="4"/><circle ref={(node)=>{dotRefs.current[1]=node}} className="sa-brand-node" style={{animationDelay:".13s"}} cx="151" cy="55" r="10" fill="#879b75" stroke="#fff9ef" strokeWidth="4"/><circle ref={(node)=>{dotRefs.current[2]=node}} className="sa-brand-node" style={{animationDelay:".26s"}} cx="37" cy="129" r="10" fill="#d2a05f" stroke="#fff9ef" strokeWidth="4"/><circle ref={(node)=>{dotRefs.current[3]=node}} className="sa-brand-node" style={{animationDelay:".39s"}} cx="162" cy="130" r="10" fill="#879b75" stroke="#fff9ef" strokeWidth="4"/><circle ref={(node)=>{dotRefs.current[4]=node}} className="sa-brand-node" style={{animationDelay:".52s"}} cx="100" cy="174" r="10" fill="#d66d4b" stroke="#fff9ef" strokeWidth="4"/>
   </svg>;
@@ -99,25 +106,23 @@ export default function HomeLanding() {
     <style>{`
       @keyframes sa-connection-draw { to { stroke-dashoffset: 0; } }
       @keyframes sa-picto-arrive { 0% { transform:scale(.75); opacity:.6 } 60% { transform:scale(1.14); opacity:1 } 100% { transform:scale(1); opacity:1 } }
-      @keyframes sa-brand-node-pulse { 0%,100% { transform:scale(1) } 45% { transform:scale(1.25) } }
-      @keyframes sa-mark-pulse { 0%,100% { transform:scale(1) } 50% { transform:scale(1.035) } }
+      @keyframes sa-brand-node-pulse { 0%,100% { transform:scale(1); opacity:.9 } 45% { transform:scale(1.24); opacity:1 } }
+      @keyframes sa-connection-fade { to { opacity:0 } }
+      @keyframes sa-traveler-fade { 0%,72% { opacity:1 } 100% { opacity:0 } }
+      @keyframes sa-mark-pulse { 0%,100% { filter:drop-shadow(0 12px 22px rgba(38,63,50,.08)) } 50% { filter:drop-shadow(0 14px 27px rgba(182,130,78,.22)) } }
       @keyframes sa-splash-fade { 0%,75% { opacity:1 } 100% { opacity:0 } }
-      .sa-home .sa-connection { stroke-dasharray:1; stroke-dashoffset:1; animation:sa-connection-draw 1.15s cubic-bezier(.2,.65,.25,1) forwards; }
+      .sa-home .sa-connection { stroke-dasharray:1; stroke-dashoffset:1; opacity:.38; animation:sa-connection-draw .72s cubic-bezier(.2,.65,.25,1) forwards,sa-connection-fade .38s ease-out 1.12s forwards; }
+      .sa-home .sa-traveler { animation:sa-traveler-fade 1.25s ease-out forwards; }
       .sa-home .sa-picto { transform-box:fill-box; transform-origin:center; animation:sa-picto-arrive .55s ease-out both; }
       .sa-home .sa-mark { animation:sa-mark-pulse 4s ease-in-out infinite; }
-      .sa-home .sa-brand-node { transform-box:fill-box; transform-origin:center; animation:sa-brand-node-pulse .9s ease-in-out 1 both; }
+      .sa-home .sa-brand-node { transform-box:fill-box; transform-origin:center; animation:sa-brand-node-pulse 2.15s ease-in-out infinite; }
       .sa-home .sa-nav-card { transition:transform .18s ease,background .18s ease,border-color .18s ease; }
       .sa-home .sa-nav-card:hover { transform:translateY(-2px); background:#f8f3e9; border-color:#ddcdb3; }
       .sa-home .sa-network-lines { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; z-index:2; }
       @media(max-width:760px){.sa-home .sa-modules{grid-template-columns:repeat(3,minmax(0,1fr))!important}.sa-home .sa-hero{grid-template-columns:1fr!important}.sa-home .sa-hero-art{min-height:230px!important}.sa-home .sa-stakeholders{grid-template-columns:repeat(2,minmax(0,1fr))!important}.sa-home .sa-side-branch{margin-top:10px}}
       @media(max-width:420px){.sa-home .sa-modules{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-      @media(prefers-reduced-motion:reduce){.sa-home .sa-connection,.sa-home .sa-picto,.sa-home .sa-mark,.sa-home .sa-brand-node{animation:none!important;transition:none!important}.sa-home .sa-connection{stroke-dashoffset:0}}
+      @media(prefers-reduced-motion:reduce){.sa-home .sa-connection,.sa-home .sa-picto,.sa-home .sa-mark,.sa-home .sa-brand-node{animation:none!important;transition:none!important}.sa-home .sa-connection{stroke-dashoffset:0;opacity:0}.sa-home .sa-traveler{display:none}}
     `}</style>
-
-    <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
-      <Link href="/#top" aria-label="Solidareaty home" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-[#263f32] no-underline"><SolidareatyLogo className="h-11 w-auto"/><span>Solidareaty</span></Link>
-      <Link href="/partner/restaurant" className="rounded-full bg-[#263f32] px-4 py-2.5 text-xs font-extrabold text-white no-underline">{t("nav_restaurant_signup")}</Link>
-    </header>
 
     <nav aria-label="Explore Solidareaty" className="sa-modules mx-auto grid max-w-7xl grid-cols-6 gap-2 px-5 pb-5 sm:px-8">
       {modules.map((module) => <Link key={module.href} href={module.href} className="sa-nav-card flex min-h-[62px] min-w-0 items-center justify-center gap-2 rounded-2xl border border-[#e6eae2] bg-white px-2 py-2 text-center text-[11px] font-extrabold text-[#53665a] no-underline"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#f2eee5] text-[#957458]"><NetworkPictogram name={module.icon} size={18}/></span><span>{module.label}</span></Link>)}
@@ -127,14 +132,14 @@ export default function HomeLanding() {
       <svg className="sa-network-lines" aria-hidden="true" viewBox={`0 0 ${Math.max(stageRef.current?.clientWidth || 1, 1)} ${Math.max(stageRef.current?.clientHeight || 1, 1)}`} preserveAspectRatio="none">
         {connections.map((connection, index) => <g key={`connection-${index}`}>
           <path d={connection.d} pathLength="1" fill="none" stroke={connection.color} strokeWidth="2" strokeOpacity=".35" strokeLinecap="round" className={motionAllowed ? "sa-connection" : ""} style={{ animationDelay: `${connection.delay}s`, strokeDashoffset: motionAllowed ? 1 : 0 }}/>
-          {motionAllowed && <circle r="4.2" fill={connection.color} stroke="#f7f8f3" strokeWidth="2"><animateMotion path={connection.d} dur="1.25s" begin={`${connection.delay}s`} fill="freeze" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines=".2 .65 .25 1"/></circle>}
+          {motionAllowed && <circle className="sa-traveler" r="4.2" fill={connection.color} stroke="#f7f8f3" strokeWidth="2" style={{ animationDelay: `${connection.delay}s` }}><animateMotion path={connection.d} dur="1.1s" begin={`${connection.delay}s`} fill="freeze" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines=".2 .65 .25 1"/></circle>}
           <circle className={motionAllowed ? "sa-picto" : ""} cx={connection.targetX} cy={connection.targetY} r="3" fill={connection.color} style={{ animationDelay: `${connection.delay + .78}s` }}/>
         </g>)}
       </svg>
 
       <section id="top" className="relative z-[1] grid min-h-[354px] grid-cols-[1.08fr_.92fr] items-center gap-6 overflow-hidden rounded-[30px] bg-gradient-to-br from-[#e9efdf] via-[#f2efdf] to-[#f5dfd1] p-7 sm:p-12">
         <div className="relative z-[3]"><span className="inline-flex items-center gap-2 rounded-full border border-[#dce3d8] bg-white/70 px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-[#65765f]"><NetworkPictogram name="sparkle" size={15}/>Local food. Fair work. Stronger neighbourhoods.</span><h1 className="mt-5 max-w-2xl text-4xl font-black leading-[1.02] tracking-tight text-[#263f32] sm:text-6xl">Good things happen around the corner.</h1><p className="mt-4 max-w-xl text-sm leading-7 text-[#617066] sm:text-base">Order from independent restaurants and local producers. Keep more value in your neighbourhood.</p><a href="#restaurants" className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#d96a49] px-5 py-3 text-xs font-extrabold text-white no-underline">{t("home_browse")}<span aria-hidden="true">→</span></a></div>
-        <div className="sa-hero-art relative z-[3] grid min-h-[270px] place-items-center"><div className="absolute h-[245px] w-[245px] rounded-full border border-white/75 bg-white/35"/><div ref={markRef} className="sa-mark relative grid h-[196px] w-[196px] place-items-center rounded-full bg-white/65 shadow-[0_18px_42px_rgba(38,63,50,.10)]"><NetworkMark size={172} dotRefs={brandDotRefs}/></div><span className="absolute right-0 top-5 rounded-xl bg-white px-3 py-2 text-[10px] font-extrabold text-[#566b59] shadow">Local value, shared fairly</span><span className="absolute bottom-5 left-0 rounded-xl bg-[#263f32] px-3 py-2 text-[10px] font-bold text-white">Connected neighbourhoods</span><div className="absolute z-[4] flex items-center gap-2" style={{ transform:"translateY(116px)" }}><SolidareatyLogo className="h-8 w-auto"/></div></div>
+        <div className="sa-hero-art relative z-[3] grid min-h-[270px] place-items-center"><div className="absolute h-[245px] w-[245px] rounded-full border border-white/75 bg-white/35"/><div ref={markRef} className="sa-mark relative grid h-[196px] w-[196px] place-items-center rounded-full bg-white/65 shadow-[0_18px_42px_rgba(38,63,50,.10)]"><NetworkMark size={172} dotRefs={brandDotRefs}/></div><span className="absolute right-0 top-5 rounded-xl bg-white px-3 py-2 text-[10px] font-extrabold text-[#566b59] shadow">Local value, shared fairly</span><span className="absolute bottom-5 left-0 rounded-xl bg-[#263f32] px-3 py-2 text-[10px] font-bold text-white">Connected neighbourhoods</span></div>
       </section>
 
       <section className="relative z-[1] pt-14">
