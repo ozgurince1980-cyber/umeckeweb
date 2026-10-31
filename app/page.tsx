@@ -1,10 +1,2 @@
-import React from "react";
-import RestaurantManager from "./components/RestaurantManager";
-
-export default function Home() {
-  return (
-    <main>
-      <RestaurantManager />
-    </main>
-  );
-}
+import HomeLanding from "./components/HomeLanding";
+export default function Home() { return <HomeLanding />; }

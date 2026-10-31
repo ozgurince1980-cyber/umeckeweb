@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { useI18n } from "../../lib/i18n";
 
 interface CartBarProps {
   items: any[];
@@ -8,6 +9,7 @@ interface CartBarProps {
 }
 
 export default function CartBar({ items, onOpenCart }: CartBarProps) {
+  const { t } = useI18n();
   if (!items || items.length === 0) return null;
 
   const totalCount = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
@@ -33,7 +35,7 @@ export default function CartBar({ items, onOpenCart }: CartBarProps) {
       fontFamily: 'sans-serif'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{totalCount} Ürün</span>
+        <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{totalCount} {t("cart_items")}</span>
         <span style={{ color: '#666' }}>|</span>
         <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#48bb78' }}>{totalPrice.toFixed(2)} €</span>
       </div>
@@ -50,7 +52,7 @@ export default function CartBar({ items, onOpenCart }: CartBarProps) {
           fontSize: '14px'
         }}
       >
-        Sepete Git / Sipariş Ver
+        {t("cart_submit")}
       </button>
     </div>
   );
