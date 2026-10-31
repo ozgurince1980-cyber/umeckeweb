@@ -1,12 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect, useRef } from "react";
 import LanguageSwitcher from "./LanguageSwitcher";
 import SolidareatyLogo from "./SolidareatyLogo";
 import { useI18n } from "../../lib/i18n";
 
 export default function SiteNavigation() {
   const { t } = useI18n();
+  const [partnerOpen, setPartnerOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Dışarı tıklandığında menüyü otomatik kapat
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setPartnerOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const links = [
     ["/", t("nav_restaurants")],
     ["/meal-plans", t("nav_meal_plans")],
@@ -15,6 +30,7 @@ export default function SiteNavigation() {
     ["/track", t("nav_track")],
     ["/wallet", t("nav_wallet")],
   ];
+
   const partner = [
     ["/partner/restaurant", t("nav_restaurant_signup")],
     ["/producer", t("nav_producer_panel")],
@@ -38,18 +54,30 @@ export default function SiteNavigation() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <details className="group relative">
-            <summary className="cursor-pointer list-none rounded-full border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 hover:bg-stone-50">
-              {t("nav_partner_panels")} ▾
-            </summary>
-            <div className="absolute right-0 z-[5000] mt-2 grid min-w-52 gap-1 rounded-xl border border-stone-200 bg-white p-2 shadow-xl">
-              {partner.map(([href, label]) => (
-                <Link key={href} href={href} className="rounded-lg px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-brand-light/30 hover:text-brand-wine">
-                  {label}
-                </Link>
-              ))}
-            </div>
-          </details>
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setPartnerOpen(!partnerOpen)}
+              className="cursor-pointer list-none rounded-full border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 hover:bg-stone-50 flex items-center gap-1.5"
+              aria-expanded={partnerOpen}
+            >
+              {t("nav_partner_panels")} <span>{partnerOpen ? "▴" : "▾"}</span>
+            </button>
+            {partnerOpen && (
+              <div className="absolute right-0 z-[5000] mt-2 grid min-w-52 gap-1 rounded-xl border border-stone-200 bg-white p-2 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+                {partner.map(([href, label]) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setPartnerOpen(false)}
+                    className="rounded-lg px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-brand-light/30 hover:text-brand-wine"
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
           <LanguageSwitcher />
         </div>
       </nav>
